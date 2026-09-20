@@ -46,3 +46,7 @@ hf_token
 
 # Thermal layer artifacts (regenerable: uv run python -m pipeline.thermal build)
 data/thermal/
+
+# Screenshots from UI verification passes
+app/shots/
+app/.playwright-mcp/

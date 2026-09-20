@@ -1,0 +1,28 @@
+- generic [ref=f8e2]:
+  - link "Skip to main content" [ref=f8e3] [cursor=pointer]:
+    - /url: "#content"
+  - generic [ref=f8e4]:
+    - generic [aria-hidden] [ref=f8e5]:
+      - generic [ref=f8e11]: Ariadne · NYC
+      - generic [ref=f8e12]: Five-borough wayfinding
+    - generic [ref=f8e13]:
+      - banner "Session status" [ref=f8e14]:
+        - generic [ref=f8e15]:
+          - generic [ref=f8e16]: Session
+          - generic [ref=f8e17]: 10:24 · SUN · SEP 20 · New York City
+          - generic [ref=f8e18]: Network
+          - generic [ref=f8e21]: ● Local · 0 records
+      - main [ref=f8e22]:
+        - navigation "Neighborhood" [ref=f8e23]:
+          - button "Brownsville" [ref=f8e24] [cursor=pointer]
+          - button "Mott Haven" [ref=f8e25] [cursor=pointer]
+          - button "Tremont" [ref=f8e26] [cursor=pointer]
+          - button "East Harlem N" [ref=f8e27] [cursor=pointer]
+          - button "North Corona" [ref=f8e28] [cursor=pointer]
+        - generic [ref=f8e30]:
+          - heading "North Corona, Queens" [level=2] [ref=f8e31]
+          - paragraph [ref=f8e32]: A Heat Vulnerability Index 4 to 5 neighborhood with no spray showers and no misting stations. There is nothing here to be a quarter mile away from. The claim covers none of North Corona's sidewalk network, because the network leads nowhere.
+          - blockquote [ref=f8e33]:
+            - paragraph [ref=f8e34]: “no New Yorker in the most heat-burdened communities is more than 1/4 mile away from an outdoor cooling element”
+            - generic [ref=f8e35]: NYC DEP, Mayor de Blasio Expands Cool It! NYC, 24 June 2020
+          - paragraph [ref=f8e36]: The mean radiant temperature field here is a proxy, not SOLWEIG. The City also opens hydrant spray caps during heat advisories. Those are not in the published dataset and are not counted here.

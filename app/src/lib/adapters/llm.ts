@@ -121,7 +121,12 @@ export class WebLLMGraniteAdapter implements LLMAdapter {
     this.engine = await webllm.CreateMLCEngine(modelId, {
       appConfig: {
         ...prebuilt,
-        useIndexedDBCache: true,
+        // web-llm replaced `useIndexedDBCache: true` with `cacheBackend`. The
+        // old field is not in AppConfig any more, so it was being accepted by
+        // the object literal and then ignored: the model was caching to
+        // whichever backend the library defaults to, not the one this app
+        // documents and the Playwright quota notes assume.
+        cacheBackend: 'indexeddb',
         model_list: [localModels[modelId], ...prebuilt.model_list],
       },
       initProgressCallback: (r: { text?: string; progress?: number }) =>

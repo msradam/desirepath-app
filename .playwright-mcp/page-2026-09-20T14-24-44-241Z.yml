@@ -1,0 +1,24 @@
+- generic [ref=f9e2]:
+  - link "Skip to main content" [ref=f9e3] [cursor=pointer]:
+    - /url: "#content"
+  - generic [ref=f9e4]:
+    - generic [aria-hidden] [ref=f9e5]:
+      - generic [ref=f9e11]: Ariadne · NYC
+      - generic [ref=f9e12]: Five-borough wayfinding
+    - generic [ref=f9e13]:
+      - banner "Session status" [ref=f9e14]:
+        - generic [ref=f9e15]:
+          - generic [ref=f9e16]: Session
+          - generic [ref=f9e17]: 10:24 · SUN · SEP 20 · New York City
+          - generic [ref=f9e18]: Network
+          - generic [ref=f9e21]: ● Local · 0 records
+      - main [ref=f9e22]:
+        - navigation "Neighborhood" [ref=f9e23]:
+          - button "Brownsville" [ref=f9e24] [cursor=pointer]
+          - button "Mott Haven" [ref=f9e25] [cursor=pointer]
+          - button "Tremont" [ref=f9e26] [cursor=pointer]
+          - button "East Harlem N" [ref=f9e27] [cursor=pointer]
+          - button "North Corona" [ref=f9e28] [cursor=pointer]
+        - generic [ref=f9e30]:
+          - heading "Loading coverage" [level=2] [ref=f9e31]
+          - paragraph [ref=f9e32]: Reading the sidewalk network and the cooling elements for MN1102.

@@ -533,10 +533,14 @@ async function main() {
     // Written for the comparison view to render. Computing it here keeps the
     // heavy work at build time, so the app draws two shapes and does no
     // routing of its own, which is what keeps the offline guarantee cheap.
-    const outPath = path.join(DATA, 'thermal', `${nta}-coverage.json`);
+    // data/ root, not data/thermal/, because the app serves data/ as /output/
+    // and this is an app-served artifact rather than a build intermediate.
+    const outPath = path.join(DATA, `${nta}-coverage.json`);
     fs.writeFileSync(outPath, JSON.stringify({
       nta2020: nta, name: meta.name, borough: meta.borough,
       area_km2: meta.area_km2, quarter_mile_m: QM,
+      // The neighbourhood outline is the denominator the view draws against.
+      boundary: meta.boundary,
       sun_inflation: inflation, tier: meta.tier,
       city_claim: meta.city_claim,
       elements: near,

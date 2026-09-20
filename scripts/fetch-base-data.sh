@@ -53,6 +53,24 @@ for b in $BOROUGHS; do
   fetch "$OSW_RELEASE/nyc-osw-$b.geojson.gz" "$OSW/nyc-osw-$b.geojson.gz"
 done
 
+# The app serves these three through app/static/. They were committed as
+# absolute symlinks into a path that only ever existed on the original author's
+# machine, so they are recreated here as relative links that resolve from any
+# clone.
+echo
+echo "app/static/ links"
+for pair in "examples:../../router/examples" "pkg:../../router/pkg" "output:../../data"; do
+  name="${pair%%:*}"; target="${pair##*:}"
+  link="$ROOT/app/static/$name"
+  if [ -L "$link" ] && [ -e "$link" ]; then
+    echo "  have  app/static/$name"
+  else
+    rm -f "$link"
+    ln -s "$target" "$link"
+    echo "  link  app/static/$name -> $target"
+  fi
+done
+
 echo
 echo "data/:"
 ls -lh "$DATA" | tail -n +2 | awk '{printf "  %-24s %s\n", $9, $5}'

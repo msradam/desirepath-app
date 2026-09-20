@@ -18,16 +18,18 @@
       shortfall: [number, number][][];
     };
   };
-  type Element = { lon: number; lat: number; name: string; kind: string };
+  type CoolingElement = { lon: number; lat: number; name: string; kind: string };
   type Coverage = {
     nta2020: string;
     name: string;
     borough: string;
-    area_km2: number;
+    /** Optional: an older coverage file may predate this field. */
+    area_km2?: number;
     quarter_mile_m: number;
     tier: string;
     city_claim: { text: string; source: string; note?: string };
-    elements: Element[];
+    boundary: GeoJSON.MultiPolygon | GeoJSON.Polygon;
+    elements: CoolingElement[];
     readings: Record<string, Reading | undefined>;
   };
 
@@ -46,7 +48,7 @@
   const coverage = $derived(loadCoverage(nta));
 
   /** Spray showers and misting stations only. Drinking fountains are a different claim. */
-  function sprayOnly(els: Element[]): Element[] {
+  function sprayOnly(els: CoolingElement[]): CoolingElement[] {
     return els.filter((e) => !/drinking fountain$/i.test(e.kind.trim()));
   }
 
@@ -64,16 +66,20 @@
 
   // ── Map ───────────────────────────────────────────────────────────────────
   // MapLibre paint properties cannot read CSS variables, and its colour parser
-  // does not accept oklch(). A canvas context resolves the token to a form the
-  // parser accepts, so the layers stay in the design system.
+  // does not accept oklch(), which every token here is written in. Painting the
+  // token onto a canvas and reading the pixel back hands the conversion to the
+  // browser, so the layers stay in the design system and follow the theme.
+  // The fallback survives a token that fails to parse.
   let probe: CanvasRenderingContext2D | null = null;
 
   function token(name: string, fallback: string): string {
-    probe ??= document.createElement('canvas').getContext('2d');
+    probe ??= document.createElement('canvas').getContext('2d', { willReadFrequently: true });
     if (!probe) return fallback;
     probe.fillStyle = fallback;
     probe.fillStyle = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return probe.fillStyle as string;
+    probe.fillRect(0, 0, 1, 1);
+    const [r, g, b] = probe.getImageData(0, 0, 1, 1).data;
+    return `rgb(${r}, ${g}, ${b})`;
   }
 
   function palette() {
@@ -84,6 +90,19 @@
       ring: token('--ink-2', '#3b4250'),
       element: token('--poi-cooling', '#9c4a20'),
       elementEdge: token('--surface', '#ffffff')
+    };
+  }
+
+  /** Outer rings of a Polygon or MultiPolygon, for fitting and for drawing. */
+  function boundaryRings(b: GeoJSON.MultiPolygon | GeoJSON.Polygon): [number, number][][] {
+    const polys = b.type === 'MultiPolygon' ? b.coordinates : [b.coordinates];
+    return polys.map((poly) => poly[0] as [number, number][]);
+  }
+
+  function boundaryFC(b: GeoJSON.MultiPolygon | GeoJSON.Polygon): GeoJSON.FeatureCollection {
+    return {
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', geometry: b, properties: {} }],
     };
   }
 
@@ -98,7 +117,7 @@
     };
   }
 
-  function points(els: Element[]): GeoJSON.FeatureCollection {
+  function points(els: CoolingElement[]): GeoJSON.FeatureCollection {
     return {
       type: 'FeatureCollection',
       features: els.map((e) => ({
@@ -109,7 +128,7 @@
     };
   }
 
-  function rings(els: Element[], radiusM: number, steps = 64): GeoJSON.FeatureCollection {
+  function rings(els: CoolingElement[], radiusM: number, steps = 64): GeoJSON.FeatureCollection {
     return {
       type: 'FeatureCollection',
       features: els.map((e) => {
@@ -133,7 +152,7 @@
    * Attachment factory. Re-runs when the coverage data changes, which only
    * happens when `nta` changes, so rebuilding the map is the right cost.
    */
-  function thermalMap(d: Coverage, r: Reading, els: Element[]) {
+  function thermalMap(d: Coverage, r: Reading, els: CoolingElement[]) {
     return (node: HTMLElement) => {
       let map: import('maplibre-gl').Map | null = null;
       let observer: MutationObserver | null = null;
@@ -150,7 +169,11 @@
 
         const claimed = lines(r.geometry.claimed);
         const first = r.geometry.claimed?.[0]?.[0] ?? [els[0]?.lon ?? -73.9, els[0]?.lat ?? 40.66];
+        // Fit to the whole neighbourhood, not to the covered clusters. The
+        // argument is how little of Brownsville those clusters are; fitting to
+        // them crops away the denominator and makes the coverage look ample.
         const bounds = new ml.LngLatBounds(first, first);
+        for (const ring of boundaryRings(d.boundary)) for (const c of ring) bounds.extend(c);
         for (const seg of r.geometry.claimed ?? []) for (const c of seg) bounds.extend(c);
         for (const e of els) bounds.extend([e.lon, e.lat]);
 
@@ -161,12 +184,23 @@
         const c = palette();
         const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+        map.addSource('boundary', { type: 'geojson', data: boundaryFC(d.boundary) });
         map.addSource('claimed', { type: 'geojson', data: claimed });
         map.addSource('shortfall', { type: 'geojson', data: lines(r.geometry.shortfall) });
         map.addSource('reachable', { type: 'geojson', data: lines(r.geometry.reachable) });
         map.addSource('rings', { type: 'geojson', data: rings(els, d.quarter_mile_m) });
         map.addSource('elements', { type: 'geojson', data: points(els) });
 
+        // The neighbourhood outline is the denominator. Without it a viewer
+        // reads the covered clusters as the whole picture, and the argument is
+        // exactly how much of the picture they are not.
+        map.addLayer({
+          id: 'boundary-line',
+          type: 'line',
+          source: 'boundary',
+          layout: { 'line-join': 'round' },
+          paint: { 'line-color': c.ring, 'line-width': 2, 'line-opacity': 0.85 }
+        });
         map.addLayer({
           id: 'claimed-line',
           type: 'line',
@@ -228,6 +262,7 @@
         observer = new MutationObserver(() => {
           if (!map) return;
           const p = palette();
+          map.setPaintProperty('boundary-line', 'line-color', p.ring);
           map.setPaintProperty('claimed-line', 'line-color', p.claimed);
           map.setPaintProperty('shortfall-line', 'line-color', p.shortfall);
           map.setPaintProperty('reachable-line', 'line-color', p.reachable);
@@ -288,7 +323,7 @@
               <span class="swatch {row.swatch}" aria-hidden="true"></span>
               <span class="share-label">{row.label}</span>
               <span class="share-pct mono">{row.share.toFixed(1)}%</span>
-              <span class="share-km mono">{row.km2.toFixed(2)} km²</span>
+              <span class="share-km mono">{row.km2 ? `${row.km2.toFixed(2)} km²` : ''}</span>
             </li>
           {/each}
         </ol>
@@ -296,7 +331,7 @@
         <p class="body count">
           {reading.elements}
           {reading.elements === 1 ? 'cooling element serves' : 'cooling elements serve'} all
-          {d.area_km2.toFixed(2)} km² of {d.name}: spray showers and misting stations, counted
+          {d.area_km2 ? `${d.area_km2.toFixed(2)} km² of ` : ''}{d.name}: spray showers and misting stations, counted
           without drinking fountains.
         </p>
 
@@ -386,6 +421,18 @@
     padding: 24px;
     min-width: 0;
     align-self: start;
+  }
+
+  /* The readout is longer than a projector's vertical space and every line of
+     it is load-bearing, including the honesty note at the end. It scrolls
+     inside its own column so the map never gets pushed off screen, and so the
+     note cannot be cropped away by a short viewport. */
+  .panel.readout {
+    align-self: stretch;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-color: var(--border-2) transparent;
+    scrollbar-width: thin;
   }
 
   .state {
@@ -522,6 +569,7 @@
   }
 
   .map-col {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -542,6 +590,14 @@
   }
 
   .legend {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    z-index: 2;
+    background: color-mix(in oklab, var(--surface) 92%, transparent);
+    border: 1px solid var(--border-2);
+    padding: 10px 12px;
+    box-shadow: 0 2px 10px rgb(0 0 0 / 0.10);
     display: flex;
     flex-wrap: wrap;
     gap: 8px 20px;
@@ -606,6 +662,23 @@
     .map {
       min-height: 320px;
       height: 62vh;
+    }
+
+    /* Stacked, the page scrolls, so the readout must not also scroll inside
+       itself: two nested scrollers on a phone means the honesty note at the
+       end can be reached only by finding the inner one. */
+    .panel.readout {
+      align-self: start;
+      overflow-y: visible;
+    }
+
+    /* And the legend stops floating, because on a phone-sized map it covers
+       more of the argument than it explains. */
+    .legend {
+      position: static;
+      margin-top: 12px;
+      box-shadow: none;
+      background: var(--surface);
     }
   }
 </style>
