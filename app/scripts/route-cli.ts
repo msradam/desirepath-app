@@ -217,7 +217,7 @@ async function main() {
     console.error('  npx tsx scripts/route-cli.ts find "<near>" "<resource_type>" [profile]');
     console.error('  npx tsx scripts/route-cli.ts reach "<near>" "<resource_type>" [max_minutes]');
     console.error('  npx tsx scripts/route-cli.ts geocode "<query>"');
-    console.error('  npx tsx scripts/route-cli.ts thermal "<from>" "<to>" [profile]   # shortest vs heat-aware');
+    console.error('  npx tsx scripts/route-cli.ts thermal "<from>" "<to>" [profile] [sun_inflation]');
     console.error('  npx tsx scripts/route-cli.ts thermal-suite                        # the regression battery');
     console.error('  npx tsx scripts/route-cli.ts transit "<from>" "<to>" [profile] [sun_inflation]');
     console.error('  npx tsx scripts/route-cli.ts coverage <NTA> [sun_inflation]      # the quarter-mile claim');
@@ -731,7 +731,8 @@ async function main() {
   }
 
   if (cmd === 'thermal') {
-    const [from, to, profile = 'generic_pedestrian'] = rest;
+    const [from, to, profile = 'generic_pedestrian', inflationArg] = rest;
+    const inflation = inflationArg ? Number(inflationArg) : SUN_INFLATION_DEFAULT;
     const a = await geocoder.geocodeAsync(from);
     const b = await geocoder.geocodeAsync(to);
     if (!a) { log(c.red(`origin geocode miss: ${from}`)); return; }
@@ -745,9 +746,10 @@ async function main() {
     const p = PM[profile] ?? 'generic_pedestrian';
     log(`${a.display} -> ${b.display}   profile=${c.bold(p)}`);
 
+    log(c.dim(`sun_inflation ${inflation} (beta ${(1 + inflation).toFixed(2)})`));
     const variants = [
       { label: 'shortest   ', thermal: THERMAL_OFF },
-      { label: 'heat-aware ', thermal: THERMAL_ON },
+      { label: 'heat-aware ', thermal: { heat_aware: true, sun_inflation: inflation } },
     ];
     const results = variants.map((v) => {
       const r = pedestrian.route({ from: [a.lng, a.lat], to: [b.lng, b.lat], profile: p, thermal: v.thermal });

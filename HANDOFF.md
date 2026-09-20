@@ -1,106 +1,27 @@
 # HANDOFF
 
-`ariadne-thermal` extends [`ariadne-nyc`](https://github.com/msradam/ariadne-nyc) with a thermal
-cost layer, so the pedestrian router optimises heat exposure alongside distance and accessibility.
+`ariadne-thermal` extends [`ariadne-nyc`](https://github.com/msradam/ariadne-nyc) with a
+thermal cost layer, so the pedestrian router optimises heat exposure alongside distance
+and accessibility.
 
-The headline is one comparison. New York's Cool It! programme promises that
-"no New Yorker in the most heat-burdened communities is more than 1/4 mile away
-from an outdoor cooling element" (NYC DEP, 24 June 2020). "Away from" is a
-straight line. Measured against what a heat-burdened pedestrian can actually
-walk to on the OpenSidewalks graph, the claim covers between 9 and 43 points
-more of a neighbourhood's sidewalk network than the network delivers, and one
-of the five neighbourhoods has no outdoor cooling element at all.
+The headline is one comparison. New York's Cool It! programme promises that "no New
+Yorker in the most heat-burdened communities is more than 1/4 mile away from an outdoor
+cooling element" (NYC DEP, 24 June 2020). "Away from" is a straight line. Measured
+against what a heat-burdened pedestrian can actually walk to on the OpenSidewalks graph,
+the claim covers between 9 and 43 percentage points more of a neighbourhood's sidewalk
+network than the network delivers, and one of the five neighbourhoods built here has no
+outdoor cooling element at all.
 
----
-
-## What is built
-
-| Piece | Where | What it is |
-|---|---|---|
-| Thermal grid | `pipeline/thermal/` | Proxy mean radiant temperature at 4 m, per neighbourhood, from three public datasets |
-| OSWB v3 | `pipeline/thermal/attach.py`, `router/src/graph.rs` | One byte per edge carrying MRT. v2 still loads. |
-| Thermal cost | `router/src/cost.rs`, `router/examples/profile-*.json` | A continuous distance-inflating term, off by default |
-| Transit wait pricing | `app/src/lib/services/router-service.ts` | A wait is priced by where it is spent |
-| Condition map | `config/condition-map.yaml` | Condition vocabulary to routing parameters, versioned, no code |
-| Grammar extraction | `pipeline/thermal/grammar.py`, `app/src/lib/services/extraction.ts` | Stage 1, masked at the logit level |
-| Comparison view | `app/src/lib/components/ThermalCoverage.svelte` | The demo, at `/coverage?nta=BK1602` |
-| Confirmation card | `app/src/lib/components/ProfileCard.svelte` | Nothing routes until the user accepts |
-
-Five Heat Vulnerability Index 4 to 5 neighbourhoods build from one command:
-Brownsville (BK1602), Mott Haven and Port Morris (BX0101), Tremont (BX0602),
-East Harlem North (MN1102), North Corona (QN0303).
+For the demo click path, see `DEMO.md`.
 
 ---
 
-## Reproducing it
+## 1. The quarter-mile comparison
 
-```bash
-git clone <this repo> && cd ariadne-thermal
-
-# 1. Base artifacts and the app's static links. Minutes, not hours.
-./scripts/fetch-base-data.sh
-
-# 2. Python side
-uv venv && uv pip install -e .
-
-# 3. The thermal layer. About 90 seconds for all five neighbourhoods.
-uv run python -m pipeline.thermal build
-
-# 4. Derived cost parameters, the routing profiles, and the extraction grammar
-uv run python -m pipeline.thermal.profiles
-uv run python -m pipeline.thermal.grammar
-
-# 5. Router
-cd router && cargo build && wasm-pack build --target web --out-dir pkg && cd ..
-
-# 6. App
-cd app && npm ci
-
-# 7. The numbers
-npm run route -- thermal-suite
-npm run route -- coverage BK1602
-npm run route -- transit "Atlantic Avenue" "Broadway Junction"
-
-# 8. The model, only needed for the two model-touching stages
-cd .. && ./scripts/setup-model.sh
-```
-
-The base pedestrian graph comes from the deployed ariadne-nyc HuggingFace
-Space rather than a 60 to 90 minute Overpass rebuild. The OpenSidewalks v0.3
-borough splits come from the `opensidewalks-nyc` release `v0.3.1-nyc.1`, which
-is already validator clean. Neither is rebuilt here, on purpose.
-
----
-
-## The numbers
-
-### Criterion 3: thermal routes differ from shortest routes, measurably
-
-`npm run route -- thermal-suite`, nine cases, no failures.
-
-| Case | Shortest | Detour | Mean MRT | Change |
-|---|---|---|---|---|
-| East Harlem North | 1405 m | +22 m (+1.6%) | 59.2 to 44.6 C | **-14.5 C** |
-| Mott Haven | 1964 m | +2 m (+0.1%) | 56.1 to 50.1 C | -5.9 C |
-| Brownsville, cross-neighbourhood | 1627 m | +8 m (+0.5%) | 54.8 to 50.2 C | -4.6 C |
-| Brownsville, station to park | 1858 m | +20 m (+1.1%) | 51.3 to 48.5 C | -2.8 C |
-| Penn Station to Grand Central | 1716 m | **+0 m** | no MRT data | 0.0 C |
-| Union Square to Washington Square | 1004 m | **+0 m** | no MRT data | 0.0 C |
-
-The last two rows matter as much as the first. Where no thermal signal exists
-the heat-aware route is byte-identical to the shortest one, because an
-unsurveyed edge carries no `mrt` attribute rather than a default of zero.
-
-For comparison with published systems: Cool Routes reports up to -3.8 C for
-detours under 3 percent; Kolaxidis et al. (2025) 16 to 29 percent less solar
-exposure for about 3 percent; Wen et al. (2025) 8.8 percent less sun for 1.3
-percent. These numbers sit in that range rather than above it.
-
-### Criterion 5: the quarter-mile comparison
-
-Strict reading, spray showers and misting stations only, which is what the
-Cool It! announcement means by "outdoor cooling element". Shares are of the
-walkable sidewalk network inside the neighbourhood boundary.
+Strict reading: spray showers and misting stations only, which is what the Cool It!
+announcement means by "outdoor cooling element". Shares are of the walkable sidewalk
+network inside the neighbourhood boundary, at the sensitive end of the observed
+behavioural coefficient range.
 
 | Neighbourhood | Elements | As the crow flies | Walking | Walking in the heat | Gap |
 |---|---|---|---|---|---|
@@ -110,170 +31,426 @@ walkable sidewalk network inside the neighbourhood boundary.
 | Brownsville | 2 | 12.8% | 7.9% | 3.3% | **9.4 points** |
 | North Corona | **0** | none | none | none | the claim covers nothing |
 
-In area: East Harlem North's quarter mile claims 1.92 km2 and delivers 0.87
-km2 to a heat-burdened resident. Brownsville's claims 0.37 km2 and delivers
-0.10 km2.
+In area: East Harlem North's quarter mile claims 1.92 km² and delivers 0.87 km² to a
+heat-burdened resident. Brownsville's claims 0.37 km² and delivers 0.10 km².
 
-Including drinking fountains, which the same programme counts but which are
-hydration rather than cooling, Brownsville goes to 86.4 percent claimed and
-56.4 percent reachable in heat, a 30.0 point gap. Both readings are computed;
-the view leads with the strict one.
+Including drinking fountains, which the same programme counts but which are hydration
+rather than cooling, Brownsville goes to 86.4% claimed and 56.4% reachable in heat, a
+30.0 point gap. Both readings are computed; the view leads with the strict one because
+counting the 102 drinking fountains in the Brownsville bounding box would flatter the
+claim by a factor of six.
 
-### Criterion 4: the thermal transfer penalty and the mode decision
+Reproduce: `npm run route -- coverage BK1602`
 
-Implemented, tested, and **it does not change a mode decision at the demo
-hour**. This is a negative result and it is reported rather than tuned away.
+---
 
-A wait is priced as `wait_seconds * thermal_load(platform_mrt)`. Platform class
-comes from MTA Subway Stations (`39hk-dx4f`): 283 underground, 27 open-air
-sampled from the grid, 186 open-air outside coverage. An exposed elevated
-platform in Brownsville samples 62 to 63 C; underground is an assumed 37 C.
+## 2. Thermal routing
 
-The reason nothing flips is structural, and worth knowing before anyone tries
-to fix it: at 15:00 on a weekday the lines serving these neighbourhoods run
-every two to four minutes, so the wait being priced is 1 to 4 minutes. At the
-population-mean coefficient that is about 20 thermal seconds of penalty, and
-at the most sensitive coefficient in the condition map about 100. The walk
-legs, being kilometres rather than minutes, dominate by an order of magnitude.
-Swept across the whole observed coefficient range, 0.16 to 0.84, on every pair
-tried, no mode and no boarding station changed.
+`npm run route -- thermal-suite`, nine cases, no failures.
 
-An earlier build did show a mode flip, driven into the underground system by
-heat. That result came from a cost function whose worst case was 3.92x plain
-distance, which the literature does not support. When the coefficient was
-corrected to the measured 1.16, the flip disappeared. The honest conclusion is
-that thermally priced waits matter where headways are long, and NYC peak
-headways are short.
+| Case | Shortest | Detour | Mean MRT | Change |
+|---|---|---|---|---|
+| East Harlem North | 1405 m | +22 m (+1.6%) | 59.2 to 44.6 °C | **−14.5 °C** |
+| Mott Haven | 1964 m | +2 m (+0.1%) | 56.1 to 50.1 °C | −5.9 °C |
+| Brownsville, cross-neighbourhood | 1627 m | +8 m (+0.5%) | 54.8 to 50.2 °C | −4.6 °C |
+| Brownsville, station to park | 1858 m | +20 m (+1.1%) | 51.3 to 48.5 °C | −2.8 °C |
+| Penn Station to Grand Central | 1716 m | **+0 m** | no MRT data | 0.0 °C |
+| Union Square to Washington Square | 1004 m | **+0 m** | no MRT data | 0.0 °C |
+
+**The last two rows matter as much as the first.** Where no thermal signal exists the
+heat-aware route is byte-identical to the shortest one, because an unsurveyed edge
+carries no `mrt` attribute rather than a default of zero. That guarantee is asserted in
+`router/tests/thermal.rs` and in `app/tests/unit/thermal.test.ts`, and it is what lets
+the thermal layer ship switched off by default without changing any existing behaviour.
+
+Comparable published systems: Cool Routes reports up to −3.8 °C for detours under 3%;
+Kolaxidis et al. (2025) 16 to 29% less solar exposure for about 3%; Wen et al. (2025)
+8.8% less sun for 1.3%. These numbers sit inside that range rather than above it.
+
+### How heat is costed
+
+`cost = length × (1 + (β − 1) × exposure)`, where exposure interpolates the edge's mean
+radiant temperature between a shade anchor (33.0 °C) and a sun anchor (61.8 °C) computed
+from the radiation budget at the reference meteorology.
+
+β comes from Melnikov et al. (2022), *Scientific Reports* 12:2441, who estimate it from
+408 observed pedestrian path choices: population mean 1.16, individual values to 1.84.
+Basu et al. (2024), *Cities* 155:105435, revealed preference from GPS traces in Boston,
+converts to about 0.63 in the same units. `config/condition-map.yaml` places conditions
+on that measured range and states in as many words that the scale is empirical while the
+placement of a given condition on it is a design judgement.
+
+Every cost parameter is derived, not chosen. The derivation prints:
+`uv run python -m pipeline.thermal.thresholds`
+
+### Criterion 2, the card changes the route
+
+Verified live, offline, on `Rockaway Avenue to Betsy Head Park`:
+
+- No condition stated: consequence panel reads *"Heat: not priced"*, route 1858 m.
+- Tick **Reduced ability to sweat**: panel changes before anything routes to *"Heat:
+  priced. Sun inflation 0.84: a metre in full sun is costed as 1.84 metres. Continuous
+  exposure capped at 7 minutes."* Route becomes 1877 m, mean MRT 51.3 → 48.5 °C, peak
+  67.0 → 63.5 °C.
+
+**Caveat for anyone demoing it:** the route strip rounds both to "25 min · 1.2 mi", so
+the change is real but not visible on screen. Say the numbers; do not point at the strip.
+
+Raising β from 0.16 to 0.84 does not change the route further on this pair. The route
+flips once to the best available shaded alternative and then stays there. That is
+expected, and it means the coefficient controls *whether* a detour is taken, not how
+elaborate it gets.
+
+---
+
+## 3. Extraction, measured against the real model
+
+17 golden fixtures, run in a real browser against Granite 4.0 1B on WebGPU.
+
+### The guarantee holds
+
+**Schema validity was 100% across every run and every language.** That is a property of
+the decoder, not of the model: XGrammar compiles a JSON Schema generated from
+`config/condition-map.yaml` and masks the logits, so a condition term the map does not
+define is unreachable rather than merely discouraged.
+
+Decoder refusals, measured over 102 extractions before the retry shipped: **3.92%**
+(4 of 102), all `grammar matcher rejected the newly sampled token`. Transient, not
+fixture-bound: every refused fixture succeeded on other repetitions, with no correlation
+to language (3 English, 1 Spanish), sentence length (24 to 77 characters) or adversarial
+class. Median 3.35 s, p95 4.46 s.
+
+A single counted retry now ships. It is capped at one, every retry increments
+`decoderStats.retries`, and failures after the retry increment
+`decoderStats.refusalsAfterRetry`, because a silent retry would make the guarantee
+unmeasurable. **Post-retry failure rate: see the figure recorded by
+`window.__ariadneDecoderStats` in the final run, reported in the commit.**
+
+The accurate claim is **"valid or refuses, never invalid"**.
+
+### The accuracy is poor, and that is the finding
+
+**3 of 17 fixtures exactly right.** Field-level misses across 51 deterministic runs:
+
+| Field | Wrong in |
+|---|---|
+| `intent` | 33 of 51 runs (65%) |
+| `resource_types` | 18 of 51 (35%) |
+| `conditions` | 15 of 51 (29%) |
+| `destination` | 6 of 51 (12%) |
+| `max_minutes` | 3 of 51 (6%) |
+
+**`intent` is worse than a constant predictor.** The fixtures split
+plan_route 8, find_comfort 7, find_reachable 2. Always answering `plan_route` would score
+47.1%. The model scores 35.3%. Uniform random over three classes would score 33.3%.
+
+The failure is systematic, not noisy. Across all 17 fixtures the model predicted
+`find_reachable` 11 times and `find_comfort` 6 times, and **never once predicted
+`plan_route`**, which is the most common true class.
+
+### Two failure modes, both caught by the card
+
+**Over-generation.** "I have a spinal cord injury and I don't sweat" produced
+`cardiovascular_strain, impaired_sweating, low_vision`. Two of those were never stated.
+"I'm diabetic and pregnant" produced four conditions, three of them spurious (diabetes
+itself is correctly unemittable, being outside the vocabulary).
+
+**Under-generation.** "I can't handle the heat. Nearest library from Sutter Avenue."
+produced `conditions: []`. The constraint vanished entirely, and the route would have
+been indistinguishable from one requested by somebody who said nothing.
+
+Both are exactly why nothing routes until the user accepts the card. This is not a
+theoretical safeguard: during the offline verification the model set
+`intent: find_reachable`, the route came back "0 places", and correcting one radio button
+turned it into a real route.
 
 ### The multilingual gap
 
-FILLED IN FROM THE RUN. See "Known issues" if this section is still a
-placeholder.
+| Language | Fixtures | Schema-valid | Exactly right |
+|---|---|---|---|
+| English | 12 | 100% | 2 |
+| Spanish | 3 | 100% | 1 |
+| Bengali | 1 | 100% | 0 |
+| Haitian Creole | 1 | 100% | 0 |
+
+Bengali and Haitian Creole recovered a partial origin and nothing else. Both are
+household languages in the highest Heat Vulnerability Index neighbourhoods. The fixtures
+were not tuned to improve this.
 
 ---
 
-## What is faked or proxied, and where
+## 4. Criterion 4: the null result on thermally priced transit waits
 
-**The mean radiant temperature field is a proxy, not SOLWEIG.** This is the
-single largest caveat and it is labelled `tier: proxy` in every artifact, every
-CLI line and the comparison view itself.
+A wait has a duration and a location, and that location has a radiant environment. The
+router prices it as `wait_seconds × thermal_load(platform_mrt)`. Platform class comes
+from MTA Subway Stations (`39hk-dx4f`): 283 underground, 27 open-air sampled from the
+grid, 186 open-air outside coverage. An exposed elevated platform in Brownsville samples
+62 to 63 °C; underground is an assumed 37 °C.
 
-What is the same as SOLWEIG: the governing equation. Tmrt is derived from the
-six-directional radiant flux of Höppe (1992) with the published angular factors
-for a standing body (0.06 up and down, 0.22 per side, 0.28 cylinder) and the
-published absorption coefficients (0.70 shortwave, 0.97 longwave), inverted
-through Stefan-Boltzmann. Clear-sky irradiance is Kasten and Czeplak (1980),
-the direct and diffuse split is Erbs et al. (1982), sky emissivity is Prata
-(1996).
+**It does not change a mode decision at any coefficient in the observed range.**
 
-What is different: the geometry. SOLWEIG resolves a LiDAR digital surface model
-at 1 m. This resolves extruded building footprints at 4 m, with tree crowns
-from the street tree census rather than a canopy model. It also fixes the sky
-at clear, the hour at one, and drops wind, humidity, and the anisotropic sky.
+Swept: `sun_inflation` 0.16, 0.40, 0.63 and 0.84, which spans the Melnikov population
+mean to the observed individual maximum, across every ordered pair of transit, park and
+library POIs within each of the five neighbourhoods at 500 to 2500 m separation,
+departing 15:00. No mode changed and no boarding station changed.
 
-How it was checked: building shade buys 28.8 K of Tmrt here. Middel et al.
-(2021) measured 22.8 to 30.9 K from urban form across 1,988 samples; Du et al.
-(2020) report 28.8 K in Harbin. Sunlit 61 to 66 C and shaded 33 to 38 C sit
-inside what Li et al. (2023) map for Philadelphia, the closest published
-humid-continental analogue.
+**Why, and what would have to be true for it to flip.** At 15:00 on a weekday the lines
+serving these neighbourhoods run every two to four minutes, so the wait being priced is
+1 to 4 minutes. At the population mean that is about 20 thermal seconds of penalty; at
+the most sensitive coefficient about 100. The walk legs are kilometres, and their
+thermal weighting dominates by an order of magnitude.
 
-**The underground platform temperature is assumed, not measured.** A single
-constant of 37 C stands in for every underground platform, labelled
-`tier: assumed`. No measured NYC platform temperatures were available. It is
-one constant in `pipeline/thermal/stops.py` and replacing it changes nothing
-else.
+A flip needs one of:
 
-**Where a condition sits on the cost scale is a design judgement.** The scale
-is empirical: Melnikov et al. (2022) estimate a population mean of 1.16 and
-individual values to 1.84 from 408 observed path choices. Placing "cannot
-sweat" at the top of that observed range is this project's call, not a
-measurement, and `config/condition-map.yaml` says so in as many words.
+- **Long headways.** Off-peak, late night, or a weekend service pattern, where a 12 to 20
+  minute wait is realistic. The grid is currently built only for 15:00, so this cannot be
+  tested without building an evening layer.
+- **A short walk alternative.** Under about 600 m, where the walk's own thermal cost stays
+  small. The router currently short-circuits to walk-only below 600 m without consulting
+  transit at all, so that branch would need changing first.
+- **A much hotter platform than its surroundings.** The elevated-platform exposure floor
+  already lifts elevated platforms toward the grid maximum, but a measured platform
+  temperature rather than a sampled ground-level one would widen the gap.
 
-**The resident counts are absent, not estimated.** No 2020 population by 2020
-NTA was available cheaply, so the comparison reports network share and area and
-does not claim a number of people. Area itself is derived from node share
-assuming even node density, which is labelled where it appears.
-
-**The elevated-platform exposure floor** raises an elevated platform's sampled
-MRT toward the grid maximum, because the grid is computed at ground level and a
-platform sits above the shade that reaches the pavement. That is a correction,
-not a measurement.
+An earlier build did show a mode flip, driven into the underground system by heat. That
+came from a cost function whose worst case was 3.92× plain distance, which the literature
+does not support. When the coefficient was corrected to the measured 1.16, the flip
+disappeared. **The honest conclusion is that thermally priced waits matter where headways
+are long, and NYC peak headways are short.** No coefficient was tuned to recover it.
 
 ---
 
-## Known issues
+## 5. Air quality: analysis, not a routed layer
 
-**An unsurveyed edge is free.** The thermal term charges nothing where there is
-no `mrt` attribute, which is correct (unknown is not cool) but creates a bias:
-a heat-aware route is never penalised for leaving the surveyed area. The zero
-point is anchored at full shade rather than at thermal comfort, which means an
-unsurveyed edge costs exactly what a fully shaded one costs rather than less
-than every surveyed edge, and that removes most of the bias. The margin around
-each neighbourhood is wide enough that ordinary trips stay inside it, and the
-CLI refuses to report a delta when two routes differ by more than five points
-of surveyed share. It is mitigated, not solved.
+NYCCAS was investigated and **deliberately not wired into the cost function**. The
+analysis stands on its own and corrects a premise.
 
-**Coverage is 7.66 percent of the city's edges.** Five neighbourhoods out of
-roughly 200. Everything outside them routes exactly as it did before.
+**The correction.** The working assumption was that NO₂ and black carbon are
+tailpipe-proximate, falling off within metres of the curb, and that this is precisely the
+resolution an OpenSidewalks graph works at, where the two sides of a street are separate
+edges. **That is not supported by this dataset.** NYCCAS Air Pollution Rasters
+(`q68s-8qxv`, verified live) are **300 m** (984 US ft), 157 × 156 cells for the entire
+city, EPSG:2263. Both sides of a street, and several parallel streets, fall in one cell.
+Any routing on it would be corridor-scale, not curbside.
 
-**One hour, one sky.** The grid is built for 15:00 on 21 July under a clear
-sky at a heat advisory air temperature. Morning and evening, when shadows are
-long and many people are actually travelling, are not built.
+**What survives, measured on NYC's own data.** Sampling all 1,366,756 edge midpoints
+against the year-15 annual-average rasters:
 
-**The Cool It! dataset is the permanent mapped set.** The City also opens
-hydrant spray caps during heat advisories, and those are not in the published
-data and are not counted. The comparison view says so on its face. This is the
-strongest objection to the headline number and it is stated rather than buried.
+| Pollutant | Within-Brownsville range | As % of citywide median | Citywide edge range |
+|---|---|---|---|
+| NO₂ | 3.72 ppb | **23.1%** | 7.83 to 28.41 ppb |
+| Black carbon | 0.13 | **24.1%** | 0.35 to 1.58 |
+| PM2.5 | 0.71 | **10.7%** | 5.95 to 8.77 |
 
-**Humidity, wind and air quality are unmodelled.** `config/condition-map.yaml`
-lists them explicitly under `unmodelled` rather than leaving their absence to
-be read as "not a risk".
+NO₂ and black carbon vary about **2.2× more** than PM2.5 within a single neighbourhood.
+So **excluding PM2.5 from any future cost function is now justified empirically rather
+than by citation**: on this city's own surfaces, PM2.5 is close to uniform at the scale a
+pedestrian route can act on, and routing on it would move the number without moving the
+exposure.
 
-**A regular street grid limits what shade routing can do.** Wolf et al. (2024)
-show that on a perfect grid with uniform building heights the benefit is
-mathematically independent of the sun-aversion coefficient, and Manhattan
-gains only from grid irregularity and heterogeneous building heights. The
-Manhattan numbers here should be read with that in mind.
+**Seasonal inversion, worth recording:** heat peaks in summer while NO₂ and PM2.5 rise in
+winter, partly because building boilers burn oil and gas for heat and hot water. One
+exposure framework, two seasons, the same graph.
+
+**Real-time PM2.5** is available hourly from NYCCAS street-level monitors, one of which is
+in Mott Haven, one of the five built neighbourhoods. It is **not** wired in and should not
+be wired into the query path: it would break the offline guarantee. It belongs in the same
+class as the MTA SIRI elevator call, a boot-time fetch, and is left unimplemented.
 
 ---
 
-## The three highest-value next steps
+## 6. What is proxied, and its tier
 
-**1. Run SOLWEIG for one neighbourhood and diff it against the proxy.**
-Everything is already shaped for this. `pipeline/thermal/grid.py` and
-`radiation.py` are the only files a real run replaces; `attach.py`, the OSWB v3
-format, the cost tree and the app all consume the raster and do not know how it
-was made. The deliverable is a scatter of proxy against modelled Tmrt on the
-same 4 m cells, and an honest RMSE. SOLWEIG validation against MaRTy reports
-about 5.6 C RMSE; this proxy should be worse, and by how much is the number
-that decides whether the proxy is publishable on its own.
+**Mean radiant temperature: `tier: proxy`.** Labelled in every artifact, every CLI line
+and the comparison view itself.
 
-**2. Build the hourly layer and price time, not distance.**
-One hour is the sharpest limitation. Building 08:00, 12:00, 15:00 and 18:00
-would cost four times the compute, which is about six minutes, and would let
-the router answer "when should I leave" as well as "which way should I go". It
-also opens the one place where this project would have to extend the
-literature rather than follow it: every calibrated coefficient found was
-estimated against distance at an assumed constant walking speed, so a slow
-walker's longer exposure on the same segment is currently unpriced. Wang et
-al. (2022) is the only published thermal budget denominated in minutes and is
-the place to start.
+Same as SOLWEIG: the governing equation. Tmrt from the six-directional radiant flux of
+Höppe (1992) with the published angular factors for a standing body (0.06 up and down,
+0.22 per side, 0.28 cylinder) and absorption coefficients (0.70 shortwave, 0.97
+longwave), inverted through Stefan-Boltzmann. Clear-sky irradiance from Kasten and
+Czeplak (1980), direct and diffuse split from Erbs et al. (1982), sky emissivity from
+Prata (1996).
 
-**3. Get a measured underground platform temperature, and a New York
-route-choice coefficient.**
-The two weakest numbers in the build are both assumptions standing in for
-measurements that could exist. Platform temperature needs a sensor and a
-summer. The route-choice coefficient currently comes from 46 students in
-Singapore, cross-checked against GPS traces in Boston; the population this
-router is aimed at is older, sicker and less acclimatised than either. A
-stated-preference instrument run in Brownsville would replace the single
-weakest link in the argument.
+Different from SOLWEIG: the geometry. Extruded building footprints at 4 m rather than a
+LiDAR digital surface model at 1 m, tree crowns from the street tree census rather than a
+canopy model, clear sky, one hour, no wind, no humidity, no anisotropic sky.
+
+Validation: building shade buys **28.8 K** here. Middel et al. (2021) measured 22.8 to
+30.9 K from urban form across 1,988 samples; Du et al. (2020) report 28.8 K in Harbin.
+Sunlit 61 to 66 °C and shaded 33 to 38 °C sit inside what Li et al. (2023) map for
+Philadelphia, the closest published humid-continental analogue.
+
+**Underground platform temperature: `tier: assumed`.** A single constant of 37 °C stands
+in for every underground platform. No measured NYC platform temperatures were available.
+One constant in `pipeline/thermal/stops.py`; replacing it changes nothing else.
+
+**Wind: not modelled at all.** The MRT budget has no convective term. This is the single
+largest physical omission and is why UTCI is the top next step.
+
+**Air quality vintage: NYCCAS year 15 annual average, 300 m.** Analysis only, not routed.
+
+**Resident counts: absent, not estimated.** No 2020 population by 2020 NTA was available
+cheaply, so the comparison reports network share and area and claims no number of people.
+Area is derived from node share assuming even node density, labelled where it appears.
+
+**Coverage: 7.66% of the city's edges.** Five neighbourhoods out of roughly 200.
+Everything outside them routes exactly as it did before.
+
+---
+
+## 7. The three highest-value next steps
+
+### 1. Replace generative intent selection with a classification head
+
+**Motivated by:** intent wrong in 65% of runs, worse than the 47.1% a constant predictor
+would achieve, with the model never once emitting the most common class across 17
+fixtures. This is the sharpest result in the project.
+
+A three-way classification over a fixed label set does not need a generative decoder at
+all. The same Granite embedding with a small trained head, or even a logistic regression
+over sentence embeddings, would almost certainly beat 35% on three classes, and would
+remove the failure mode that currently costs the user a correction on nearly every query.
+The grammar would still constrain the rest of the profile. This was deliberately not
+attempted in the time available because doing it badly would be worse than reporting the
+number honestly.
+
+### 2. Swap the routed cost from MRT to UTCI
+
+**Motivated by:** wind is entirely unmodelled, and the current cost is radiation-only.
+
+UTCI takes air temperature, relative humidity, mean radiant temperature and 10 m wind and
+returns an equivalent temperature, derived from the Fiala multi-node thermoregulation
+model coupled to an adaptive clothing model (Bröde et al., 2012). The hardest input is
+already computed, and `thermofeel` is already a dependency and already used to derive the
+thresholds. It brings wind in physiologically rather than as an invented term, and it
+**covers cold stress**, which makes the project year-round rather than a July product:
+wind chill routing in February falls out of the same equation with no new model.
+
+It was cut from this build for a specific reason worth preserving: with **uniform station
+wind**, UTCI is a monotone transform of MRT at fixed air temperature and humidity, so the
+routes barely move. What it buys is interpretability (the official stress category
+boundaries apply directly, with no inversion) and cold stress. Neither survives a
+five-minute demo. It becomes genuinely valuable the moment wind varies spatially, which
+means a street-canyon sheltering term from the building heights already extruded. That
+term must be labelled `tier: proxy` exactly as MRT is: every UTCI paper worth citing
+derives pedestrian-level wind from CFD, and uniform station wind is the honest baseline
+rather than something to imply otherwise.
+
+### 3. Measure what is currently assumed
+
+Two of the weakest numbers stand in for measurements that could exist.
+
+**Underground platform temperature** needs a sensor and a summer. It is currently one
+assumed constant driving the entire underground half of the transit wait model.
+
+**A New York route-choice coefficient.** β currently comes from 46 university students in
+Singapore, cross-checked against GPS traces in Boston. The population this router is
+aimed at is older, sicker and less acclimatised than either. A stated-preference
+instrument run in Brownsville would replace the single weakest link in the argument.
+
+---
+
+## 8. Reproducing it
+
+```bash
+git clone <this repo> && cd ariadne-thermal
+./scripts/fetch-base-data.sh          # base artifacts and app/static links
+uv venv && uv pip install -e .
+uv run python -m pipeline.thermal build            # five neighbourhoods, about 90 s
+uv run python -m pipeline.thermal.profiles         # derived cost parameters
+uv run python -m pipeline.thermal.grammar          # extraction schema
+cd router && cargo build && wasm-pack build --target web --out-dir pkg && cd ..
+cd app && pnpm install
+npm run route -- thermal-suite
+npm run route -- coverage BK1602
+cd .. && ./scripts/setup-model.sh                  # only for the model stages
+```
+
+The base pedestrian graph comes from the deployed ariadne-nyc HuggingFace Space rather
+than a 60 to 90 minute Overpass rebuild. The OpenSidewalks v0.3 borough splits come from
+the `opensidewalks-nyc` release `v0.3.1-nyc.1`, which is already validator clean. Neither
+is rebuilt here, on purpose.
+
+**The dev server cannot load the model.** `optimizeDeps.exclude` on `@mlc-ai/web-llm`
+means Vite serves it unbundled and the TVM runtime import is not wired, so
+`WebAssembly.instantiate` fails. Anything needing the model runs against a production
+build served by `app/scripts/serve-build.mjs`, which also sets the COEP and COOP headers
+cross-origin isolation requires and which `vite preview` does not.
+
+---
+
+## 9. Pre-existing breaks found and fixed in the base repo
+
+Recorded because they were all invisible until something forced them into the light.
+
+- **The Rust router did not compile.** The upstream "Polish: typography, prose" pass
+  sentence-cased six Rust keywords in `profile.rs` and `routing.rs`.
+- **A unit test contradicted its own shipped profile.** `cost.rs` asserted that a crossing
+  without a confirmed curb ramp is impassable for `manual_wheelchair`, but the profile
+  charges 3× instead, deliberately, so that gaps in NYC's curb-ramp survey do not strand
+  wheelchair users.
+- **`app/static/examples` and `app/static/pkg` were absolute symlinks** into
+  `/Users/amsrahman/ariadne-nyc/experiments/`, a path that only ever existed on the
+  original author's machine, and `static/output` was missing entirely. svelte-check
+  reported 13 errors because of it.
+- **`npm run test` collected the Playwright e2e specs under Vitest** and failed on every
+  one.
+- **`@mlc-ai/web-llm` was pinned `^0.2.82`** and the caret resolved forward to 0.2.85,
+  whose TVM runtime ABI the published Granite model library cannot load. The app booted
+  into its "model unavailable" path, which enables the search bar, so nothing looked
+  obviously broken.
+- **Playwright passed `--use-vulkan=swiftshader` in headed mode**, forcing software
+  rendering on a machine with Metal. The model then loaded so slowly that runs looked hung
+  rather than slow.
+
+---
+
+## 10. One claim to phrase carefully
+
+The roadmap includes a resident client calling a city-hosted inference server.
+
+**"No PII" is only true if the free text never leaves the device.** If the server performs
+extraction, the raw sentence crosses the wire, and the raw sentence is exactly where the
+health condition and the home address are.
+
+The accurate claim, and the one to make on stage:
+
+> Routing, destinations and the graph stay local. Nothing about the query or the
+> destination leaves the browser.
+
+That is verified: the offline test cut the network mid-session and the full pipeline,
+model inference included, still produced a route.
+
+---
+
+## 11. Numbers that will be quoted, verified
+
+- **Heat deaths, NYC: about 500 a year.** NYC DOHMH Heat-Related Mortality Report:
+  525 annually for 2018 to 2022, of which about 5 are heat-stress deaths and about 520
+  heat-exacerbated.
+- **PM2.5 deaths, NYC: about 2,000 a year.** NYC DOHMH Environment & Health Data Portal:
+  "current overall PM2.5 levels from all sources contribute to 2,000 deaths ... each
+  year". Traffic specifically contributes about 320.
+
+Two corrections to figures that were circulating:
+
+- It is **2,000, not "more than 2,000"**. An older DOHMH figure of 3,000+ exists; the
+  current portal figure is 2,000, and quoting the higher one without the vintage would be
+  wrong.
+- **"Roughly one in twenty NYC deaths" is not supported.** Against roughly 52,000 annual
+  deaths citywide, 2,000 is about 3.8%, closer to one in twenty-six. Do not use the one in
+  twenty framing.
+
+The pairing is still the right framing, and is stronger for being accurate: air pollution
+is the larger killer and the one routing can do least about, at 300 m corridor scale;
+heat is the smaller number where routing helps most, at 4 m. Both halves are true.
 
 ---
 
 ## Provenance
 
-Every dataset identifier was verified live against its API during the build,
-not recalled. Licences, the one added dependency, and the alternatives that
-were rejected are in `DEPENDENCIES.md`. The derivation of every cost parameter
-is printed by `uv run python -m pipeline.thermal.thresholds`.
+Every dataset identifier was verified live against its API during the build, not recalled.
+Licences, the one added dependency and the alternatives rejected are in
+`DEPENDENCIES.md`. Sources and caveats for every cost parameter are in
+`config/condition-map.yaml` and print from
+`uv run python -m pipeline.thermal.thresholds`.

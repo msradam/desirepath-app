@@ -17,7 +17,7 @@
   import { RouterService } from '$lib/services/router-service';
   import { NarrationService } from '$lib/services/narration-service';
   import type { NarrationCallbacks } from '$lib/services/narration-service';
-  import { ExtractionService, resolveEffects } from '$lib/services/extraction';
+  import { ExtractionService, resolveEffects, decoderStats } from '$lib/services/extraction';
   import { CONDITION_DEFAULTS, CONDITION_EFFECTS } from '$lib/domain/condition-effects';
   import type { TravelProfile } from '$lib/domain/profile-grammar';
 
@@ -338,6 +338,7 @@
     // nothing to do with reading a sentence into a form.
     (window as unknown as { __ariadneExtract?: unknown }).__ariadneExtract = (q: string) =>
       extractionService!.extract(q);
+    (window as unknown as { __ariadneDecoderStats?: unknown }).__ariadneDecoderStats = decoderStats;
     loadPhase.set('model_ready');
     loadProgress.set(100);
     loadMessage.set('Ready');
