@@ -59,8 +59,12 @@ export default defineConfig({
           args: [
             '--enable-features=Vulkan,SharedArrayBuffer,WebGPUDeveloperFeatures',
             '--enable-webgpu-developer-features',
-            '--use-vulkan=swiftshader',
-            ...(HEADLESS ? ['--enable-unsafe-swiftshader'] : []),
+            // SwiftShader only when headless. Passing it in headed mode forces
+            // software rendering on a machine that has Metal, and the model
+            // then takes so long to load that the run looks hung rather than
+            // slow: the browser sits at zero percent CPU with no network
+            // activity while the GPU path crawls.
+            ...(HEADLESS ? ['--use-vulkan=swiftshader', '--enable-unsafe-swiftshader'] : []),
           ],
           // Ignore HTTPS errors so we don't fight self-signed certs in CI.
           ignoreHTTPSErrors: true,

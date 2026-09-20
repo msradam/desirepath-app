@@ -1,6 +1,7 @@
-# ariadne-nyc
+# ariadne-thermal
 
-A browser-based accessibility routing assistant for New York City. Type a question in plain English; get a route or a list of nearby comfort resources back. Everything runs locally. The language model, the routing, the geocoder. Nothing about your query, your route, or your destination leaves the browser.
+A browser-based accessibility routing assistant for New York City, extended so
+the router optimises heat exposure alongside distance and accessibility. Type a question in plain English; get a route or a list of nearby comfort resources back. Everything runs locally. The language model, the routing, the geocoder. Nothing about your query, your route, or your destination leaves the browser.
 
 **Live demo:** https://msradam-ariadne-nyc.static.hf.space (Chrome or Edge with WebGPU; first visit downloads the 1B-parameter model into IndexedDB, ~30 seconds. Subsequent visits are instant).
 
@@ -11,6 +12,68 @@ A browser-based accessibility routing assistant for New York City. Type a questi
 *Query: "Estoy en Jackson Heights, Roosevelt y 74. ¿Dónde está el centro de enfriamiento más cercano?" The model parsed the Spanish input, resolved the intersection to Jackson Heights-Roosevelt Avenue station, and routed to ELMHURST (W16). A senior center 2 minutes away. The bottom strip surfaces start, end, profile, and `● local` runtime.*
 
 This repo contains both the app and the data pipeline that produces the graphs and indexes it loads.
+
+## The thermal layer
+
+New York's Cool It! programme promises that "no New Yorker in the most
+heat-burdened communities is more than 1/4 mile away from an outdoor cooling
+element" (NYC DEP, 24 June 2020). "Away from" is a straight line. Rendered
+against what a heat-burdened pedestrian can actually walk to on the
+OpenSidewalks graph, the claim overstates coverage of a neighbourhood's
+sidewalk network by 9 to 43 percentage points, and one of the five
+neighbourhoods built here has no outdoor cooling element at all.
+
+```bash
+uv run python -m pipeline.thermal build     # five neighbourhoods, about 90 s
+cd app
+npm run route -- coverage BK1602            # the quarter-mile comparison
+npm run route -- thermal-suite              # thermal vs shortest, in numbers
+npm run route -- transit "Atlantic Avenue" "Broadway Junction"
+```
+
+The comparison view is at `/coverage?nta=BK1602`.
+
+### How heat is costed
+
+Each edge carries a mean radiant temperature, which is what the body exchanges
+radiant heat with and runs 20 to 30 degrees above air temperature on a sunlit
+street. The router charges a distance-inflating coefficient on exposure, after
+Melnikov et al. (2022), who estimate from 408 observed pedestrian path choices
+that a metre in full sun is felt as 1.16 metres in shade. Basu et al. (2024),
+revealed preference from GPS traces in Boston, put the equivalent figure near
+0.63 in the same units. Both are in `config/condition-map.yaml`, which maps a
+fixed condition vocabulary onto routing parameters and is meant to be read and
+challenged by a clinician without reading any code.
+
+The thermal layer is off by default. A route with no stated condition is
+byte-identical to the one the pre-thermal router produced.
+
+Every cost parameter is derived rather than chosen, and the derivation prints:
+
+```bash
+uv run python -m pipeline.thermal.thresholds
+```
+
+**The MRT field is a proxy, not SOLWEIG**, and is labelled `tier: proxy`
+everywhere it appears. It uses the same governing equation, the
+six-directional formulation of Höppe (1992) with the published angular factors
+and absorption coefficients, and simplifies the inputs: extruded building
+footprints at 4 m rather than a LiDAR surface model at 1 m, street trees rather
+than a canopy model, one hour, clear sky. Building shade buys 28.8 K here
+against the 22.8 to 30.9 K that Middel et al. (2021) measured across 1,988
+samples. See `HANDOFF.md` for what else is proxied and where.
+
+### Two new surfaces
+
+A **profile confirmation card**: stage 1 reads a sentence into a form, and
+nothing routes until the user accepts or corrects it. Every field the model can
+emit has a control, so a dropped constraint is visible before it affects a
+route rather than after. The extraction is masked at the logit level by a
+schema generated from the condition map, so the model cannot emit a term the
+map does not define.
+
+A **reachability comparison view**: the quarter-mile claim, what the network
+delivers, and the gap between them, with the shortfall drawn as the figure.
 
 ## What it does
 
