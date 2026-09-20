@@ -168,7 +168,38 @@ cross-origin-opener-policy          same-origin
 /fonts/overpass-700.woff2           206, font/woff2
 ```
 
-### Running the deployed Space against your own Ollama
+### The Space runs the model itself
+
+It is a **Docker Space**, not a static one. `deploy/space/` holds the whole
+thing:
+
+| file | job |
+|---|---|
+| `Dockerfile` | `ollama/ollama` base, Node 20, the built app, model baked in |
+| `pull-model.sh` | build-time `ollama pull`, run as a script so the kill is by PID |
+| `start.sh` | `ollama serve` in the background, waits for it, warms the model, then the app |
+| `server.mjs` | serves `public/` and proxies Ollama at `/ollama` on the same origin |
+
+Spaces require the app on **port 7860** and `app_port: 7860` in the README
+frontmatter.
+
+**Why the proxy rather than letting the browser call Ollama directly.** The
+page sets COEP `require-corp` so the WebGPU fallback can allocate a
+SharedArrayBuffer. A cross-origin model call would then need CORS negotiated on
+top of mixed-content rules. Serving both on one origin removes both problems.
+
+**Why the model is baked into the image.** A Space that pulls 2.1 GB on boot
+looks broken for the first few minutes and does it again on every restart.
+
+**Two traps, both hit once:**
+
+- `pkill -f "ollama serve"` inside a `RUN` matches the build step's own command
+  line and SIGTERMs it, so the layer fails with exit 143 immediately after the
+  pull prints "success". Kill by PID from a script file.
+- The `ollama/ollama` base image sets `ENTRYPOINT ["/bin/ollama"]`. Clear it
+  with `ENTRYPOINT []` or the CMD is passed to the ollama binary as arguments.
+
+### Running the deployed Space against your own Ollama instead
 
 The Space defaults to WebGPU because a visitor has no Ollama. Anyone who does
 can use it instead, with `?llm=ollama`, provided Ollama is told to accept the

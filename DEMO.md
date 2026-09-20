@@ -9,6 +9,12 @@ still carry the argument.
 
 ## Before you start
 
+Easiest: open the deployed Space, which runs the model itself.
+`https://msradam-desirepath.hf.space` for the router,
+`https://msradam-desirepath.hf.space/coverage?nta=BK1602` for the notice.
+
+To run it locally instead:
+
 ```bash
 # Terminal 1. The model. Nothing downloads: granite4:micro is already pulled.
 ollama serve
@@ -26,6 +32,10 @@ Open `http://localhost:5190/coverage?nta=BK1602` and `http://localhost:5190/` in
 Both are ready in seconds: the model is resident in Ollama, so there is no cold model load
 to wait out on stage. The WebGPU build is still there at `?llm=webgpu` if you want the
 in-browser story, and that one does pay a 20 to 29 second first load.
+
+**Know which engine you are on before you talk about privacy.** The disclosure block above
+the route says so in one line: in your browser, on this machine, or on the server. Only the
+first keeps the sentence in the page.
 
 ---
 
@@ -122,9 +132,10 @@ Back in the first tab, run the query again and accept the card. The route draws.
 
 Say the accurate version of the claim, not a bigger one:
 
-> The model, the routing, the graph and the geocoder are all on this machine. The sentence
-> goes to localhost and no further. Nothing about the query or the destination reaches the
-> internet.
+> The routing, the graph and the geocoder are all in this browser, and they keep working
+> with the network cut. Where the sentence goes depends on which engine is running, and the
+> app says which: in the browser it goes nowhere, on this machine it goes to localhost, on
+> the Space it goes to the Space.
 
 Restore with `curl http://localhost:5190/__online` before anything else.
 
@@ -170,8 +181,9 @@ notice is the interesting part, not a glitch to apologise for.
 
 ## Do not say
 
-- "No PII." Routing, destinations and the graph stay on the machine; that is the accurate
-  claim. The sentence does leave the page, to localhost. Say localhost, not "the browser".
+- "No PII." Routing, destinations and the graph stay in the browser; that is the accurate
+  claim. Where the sentence goes depends on the engine, and the disclosure block names it.
+  Read it before claiming anything about privacy.
 - "SOLWEIG." The radiant field is a proxy and every artifact labels it `tier: proxy`.
 - "Curbside air quality." The NYCCAS rasters are 300 m. That is corridor scale, and both
   sides of a street fall in one cell.
