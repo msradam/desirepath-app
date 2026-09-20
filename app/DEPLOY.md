@@ -131,10 +131,38 @@ cd app && npm run build
 rsync -a --delete --exclude '.git' --exclude '.gitattributes' --exclude 'README.md' \
   --exclude 'output/osw' --exclude 'output/thermal' --exclude 'output/nyc-pedestrian.bin' \
   build/ /tmp/desirepath-hf/
-cd /tmp/desirepath-hf && git add -A && git commit -m "deploy" && git push
+cd /tmp/desirepath-hf && hf upload msradam/desirepath . --repo-type space \
+  --commit-message "deploy"
 ```
 
 `README.md` and `.gitattributes` live in the Space repo only, never in `build/`,
 which is why both are excluded from `--delete`. Losing the README loses the
 `custom_headers` block, and without those `crossOriginIsolated` is false and
 WebLLM cannot allocate a SharedArrayBuffer.
+
+**Use `hf upload`, not `git push`.** `hf auth login` stores its token where the
+CLI can read it and git cannot, so a `git push` to the Space fails with
+`could not read Username for 'https://huggingface.co'` even while the CLI is
+authenticated. `hf upload` handles LFS for the three files that need it
+(`nyc-pedestrian-thermal.bin`, `stops.bin`, `timetable.bin`).
+
+`short_description` in the Space README is capped at 60 characters and the
+upload is rejected outright if it is longer.
+
+### Verified on deploy
+
+```
+crossOriginIsolated                          true
+cross-origin-embedder-policy       require-corp
+cross-origin-opener-policy          same-origin
+/output/nyc-pedestrian-thermal.bin  206, application/octet-stream, ranges OK
+/fonts/overpass-700.woff2           206, font/woff2
+```
+
+### Known gap
+
+`/output/nyc-streets.json` 404s. It is the house-number address index and is
+not built by the pipeline in this repo; `geocoder.loadStreets` is called with a
+`.catch(() => {})` so the app degrades to named-place geocoding rather than
+failing. Queries like "161 Amsterdam Avenue" will not resolve. This predates the
+DesirePath work and is missing locally too.
