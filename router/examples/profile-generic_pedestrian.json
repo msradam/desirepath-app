@@ -1,9 +1,113 @@
 {
   "id": "generic_pedestrian",
-  "args": [],
+  "args": [
+    {
+      "name": "heat_aware",
+      "type": "bool",
+      "default": false,
+      "description": "Weight edges by mean radiant temperature. False reproduces the pre-thermal router exactly."
+    },
+    {
+      "name": "mrt_warm",
+      "type": "float",
+      "default": 35.0,
+      "description": "Mean radiant temperature (C) above which an edge starts costing more. Comfort threshold."
+    },
+    {
+      "name": "mrt_hot",
+      "type": "float",
+      "default": 42.0,
+      "description": "MRT (C) above which sustained walking is uncomfortable for a healthy adult."
+    },
+    {
+      "name": "mrt_severe",
+      "type": "float",
+      "default": 50.0,
+      "description": "MRT (C) at which heat strain becomes a health risk over a several-minute exposure."
+    },
+    {
+      "name": "mrt_extreme",
+      "type": "float",
+      "default": 58.0,
+      "description": "MRT (C) of fully sun-exposed asphalt at a July afternoon peak. Avoid where any alternative exists."
+    }
+  ],
   "cost": {
     "impassable_if": [],
     "base": "length",
-    "multipliers": []
+    "multipliers": [
+      {
+        "description": "Above the comfort threshold. A mild preference for the shaded side of the street.",
+        "if": {
+          "all": [
+            {
+              "param": "heat_aware",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "attr": "mrt",
+              "op": "gt",
+              "param": "mrt_warm"
+            }
+          ]
+        },
+        "multiply": 1.15
+      },
+      {
+        "description": "Compounds with the warm band. Uncomfortable for sustained walking.",
+        "if": {
+          "all": [
+            {
+              "param": "heat_aware",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "attr": "mrt",
+              "op": "gt",
+              "param": "mrt_hot"
+            }
+          ]
+        },
+        "multiply": 1.3
+      },
+      {
+        "description": "Compounds again. Heat strain over a several-minute exposure.",
+        "if": {
+          "all": [
+            {
+              "param": "heat_aware",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "attr": "mrt",
+              "op": "gt",
+              "param": "mrt_severe"
+            }
+          ]
+        },
+        "multiply": 1.5
+      },
+      {
+        "description": "Compounds again. Fully sun-exposed surface at peak. 3.92x in total.",
+        "if": {
+          "all": [
+            {
+              "param": "heat_aware",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "attr": "mrt",
+              "op": "gt",
+              "param": "mrt_extreme"
+            }
+          ]
+        },
+        "multiply": 1.75
+      }
+    ]
   }
 }

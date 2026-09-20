@@ -172,7 +172,12 @@ mod tests {
     }
 
     #[test]
-    fn wheelchair_blocked_at_crossing_without_curbramps() {
+    fn wheelchair_penalised_at_crossing_without_curbramps() {
+        // The shipped profile does NOT make an unconfirmed crossing impassable.
+        // NYC's curb-ramp survey has gaps, and hard-blocking on absent survey
+        // data strands wheelchair users on islands of the graph. The profile
+        // instead charges 3x, which buys a detour of roughly two blocks before
+        // the unconfirmed crossing wins. See the rationale in the profile JSON.
         let profile_json = include_str!("../examples/profile-manual_wheelchair.json");
         let profile = Profile::from_json(profile_json).unwrap();
         let attrs = make_edge(
@@ -181,16 +186,20 @@ mod tests {
             )
             .unwrap(),
         );
-        // avoid_curbs=true and footway=crossing and curbramps=false → impassable
-        let args = profile
-            .resolve_args(
-                [("avoid_curbs".to_owned(), json!(true))]
-                    .into_iter()
-                    .collect(),
-            )
-            .unwrap();
+        let args = profile.resolve_args(HashMap::new()).unwrap();
         let cost = eval_cost(&profile.cost, &attrs, &args);
-        assert_eq!(cost, None, "crossing without curb ramp should be impassable when avoid_curbs=true");
+        assert_eq!(cost, Some(30.0), "unconfirmed crossing should cost 3x, not block");
+    }
+
+    #[test]
+    fn avoid_curbs_is_no_longer_a_knob() {
+        // Guard against the arg quietly coming back and silently doing nothing.
+        let profile_json = include_str!("../examples/profile-manual_wheelchair.json");
+        let profile = Profile::from_json(profile_json).unwrap();
+        assert!(
+            !profile.args.iter().any(|a| a.name == "avoid_curbs"),
+            "avoid_curbs was replaced by the 3x multiplier; re-adding it needs a cost rule too",
+        );
     }
 
     #[test]

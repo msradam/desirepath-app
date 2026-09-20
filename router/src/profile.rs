@@ -16,10 +16,10 @@ use thiserror::Error;
 
 /// Edge attributes: a map from attribute name to JSON value.
 /// This is what the cost rule-tree evaluates against.
-Pub type EdgeAttrs = HashMap<String, Value>;
+pub type EdgeAttrs = HashMap<String, Value>;
 
 /// Runtime arguments supplied by the caller for one routing query.
-Pub type RuntimeArgs = HashMap<String, Value>;
+pub type RuntimeArgs = HashMap<String, Value>;
 
 #[derive(Debug, Error)]
 pub enum ProfileError {

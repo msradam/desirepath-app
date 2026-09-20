@@ -5,19 +5,57 @@
       "name": "uphill_max",
       "type": "float",
       "default": 0.0833,
-      "description": "Maximum uphill grade (rise/run). 0.0833 ≈ 5% ADA-recommended max."
+      "description": "Maximum uphill grade (rise/run). 0.0833 \u2248 5% ADA-recommended max."
     },
     {
       "name": "downhill_max",
       "type": "float",
       "default": -0.1,
       "description": "Maximum downhill grade (negative). -0.10 = 10% descent."
+    },
+    {
+      "name": "heat_aware",
+      "type": "bool",
+      "default": false,
+      "description": "Weight edges by mean radiant temperature. False reproduces the pre-thermal router exactly."
+    },
+    {
+      "name": "mrt_warm",
+      "type": "float",
+      "default": 35.0,
+      "description": "Mean radiant temperature (C) above which an edge starts costing more. Comfort threshold."
+    },
+    {
+      "name": "mrt_hot",
+      "type": "float",
+      "default": 42.0,
+      "description": "MRT (C) above which sustained walking is uncomfortable for a healthy adult."
+    },
+    {
+      "name": "mrt_severe",
+      "type": "float",
+      "default": 50.0,
+      "description": "MRT (C) at which heat strain becomes a health risk over a several-minute exposure."
+    },
+    {
+      "name": "mrt_extreme",
+      "type": "float",
+      "default": 58.0,
+      "description": "MRT (C) of fully sun-exposed asphalt at a July afternoon peak. Avoid where any alternative exists."
     }
   ],
   "cost": {
     "impassable_if": [
-      { "attr": "incline", "op": "gt", "param": "uphill_max" },
-      { "attr": "incline", "op": "lt", "param": "downhill_max" }
+      {
+        "attr": "incline",
+        "op": "gt",
+        "param": "uphill_max"
+      },
+      {
+        "attr": "incline",
+        "op": "lt",
+        "param": "downhill_max"
+      }
     ],
     "base": "length",
     "multipliers": [
@@ -25,11 +63,91 @@
         "description": "Crossings without a confirmed lowered curb ramp are strongly penalised. The router will detour to a confirmed ramp if one is nearby. Uses 3x so a detour up to ~2 blocks is preferred over an unconfirmed crossing.",
         "if": {
           "all": [
-            { "attr": "footway",   "op": "eq", "value": "crossing" },
-            { "attr": "curbramps", "op": "eq", "value": false }
+            {
+              "attr": "footway",
+              "op": "eq",
+              "value": "crossing"
+            },
+            {
+              "attr": "curbramps",
+              "op": "eq",
+              "value": false
+            }
           ]
         },
         "multiply": 3.0
+      },
+      {
+        "description": "Above the comfort threshold. A mild preference for the shaded side of the street.",
+        "if": {
+          "all": [
+            {
+              "param": "heat_aware",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "attr": "mrt",
+              "op": "gt",
+              "param": "mrt_warm"
+            }
+          ]
+        },
+        "multiply": 1.15
+      },
+      {
+        "description": "Compounds with the warm band. Uncomfortable for sustained walking.",
+        "if": {
+          "all": [
+            {
+              "param": "heat_aware",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "attr": "mrt",
+              "op": "gt",
+              "param": "mrt_hot"
+            }
+          ]
+        },
+        "multiply": 1.3
+      },
+      {
+        "description": "Compounds again. Heat strain over a several-minute exposure.",
+        "if": {
+          "all": [
+            {
+              "param": "heat_aware",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "attr": "mrt",
+              "op": "gt",
+              "param": "mrt_severe"
+            }
+          ]
+        },
+        "multiply": 1.5
+      },
+      {
+        "description": "Compounds again. Fully sun-exposed surface at peak. 3.92x in total.",
+        "if": {
+          "all": [
+            {
+              "param": "heat_aware",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "attr": "mrt",
+              "op": "gt",
+              "param": "mrt_extreme"
+            }
+          ]
+        },
+        "multiply": 1.75
       }
     ]
   }

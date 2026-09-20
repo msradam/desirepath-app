@@ -18,7 +18,20 @@ use crate::profile::EdgeAttrs;
 // ── OSWB binary constants ────────────────────────────────────────────────────
 
 const MAGIC: &[u8; 4] = b"OSWB";
-const SUPPORTED_VERSION: u8 = 2;
+
+/// v2: 18-byte edge records. v3: 19 bytes, adding the `mrt` byte.
+/// Both load. A v2 file simply yields no `mrt` attribute on any edge, which
+/// makes every thermal condition evaluate false and degrades a thermal profile
+/// to its non-thermal equivalent. That property is asserted in tests/thermal.rs.
+const SUPPORTED_VERSIONS: [u8; 2] = [2, 3];
+const VERSION_WITH_MRT: u8 = 3;
+
+/// Mean radiant temperature is stored as one byte: degrees C offset by 20 and
+/// quantised to 0.5 C. 0 is the sentinel for "not surveyed", not for 20 C.
+/// Range 1..=255 covers 20.5 C to 147.5 C; NYC street-level summer MRT runs
+/// roughly 25 C to 70 C, so this has headroom at both ends.
+const MRT_OFFSET_C: f64 = 20.0;
+const MRT_STEP_C: f64 = 0.5;
 
 // Footway byte values written by the Python exporter
 const FOOTWAY_SIDEWALK: u8 = 0;
@@ -170,6 +183,7 @@ impl OswGraph {
     ///   Nodes  10 bytes: lon(f32) lat(f32) attrs(u8) pad(u8)
     ///   Edges  18 bytes: u_idx(u32) v_idx(u32) length(f32) incline_i16(i16)
     ///                    footway(u8) surface(u8) flags(u8) width(u8)
+    ///          v3 adds:  mrt(u8)   mean radiant temperature, see MRT_OFFSET_C
     pub fn from_binary(bytes: &[u8]) -> Result<Self, GraphError> {
         let mut cur = Cursor::new(bytes);
 
@@ -181,9 +195,10 @@ impl OswGraph {
             return Err(GraphError::Binary("bad magic bytes".into()));
         }
         let version = read_u8(&mut cur)?;
-        if version != SUPPORTED_VERSION {
+        if !SUPPORTED_VERSIONS.contains(&version) {
             return Err(GraphError::Binary(format!("unsupported version {version}")));
         }
+        let has_mrt = version >= VERSION_WITH_MRT;
         let _pad = [read_u8(&mut cur)?, read_u8(&mut cur)?, read_u8(&mut cur)?];
         let node_count = read_u32_le(&mut cur)? as usize;
         let edge_count = read_u32_le(&mut cur)? as usize;
@@ -221,6 +236,7 @@ impl OswGraph {
             let surface_b   = read_u8(&mut cur)?;
             let flags       = read_u8(&mut cur)?;
             let width_b     = read_u8(&mut cur)?;
+            let mrt_b       = if has_mrt { read_u8(&mut cur)? } else { 0 };
 
             if u_raw >= indices.len() || v_raw >= indices.len() {
                 return Err(GraphError::Binary(
@@ -276,6 +292,14 @@ impl OswGraph {
             }
             if let Some(w) = width {
                 attrs.insert("width".into(), Value::from(w));
+            }
+            // Absent rather than zero when unsurveyed: a thermal multiplier
+            // keyed on `mrt` must not fire on an edge we know nothing about.
+            if mrt_b != 0 {
+                attrs.insert(
+                    "mrt".into(),
+                    Value::from(MRT_OFFSET_C + f64::from(mrt_b) * MRT_STEP_C),
+                );
             }
 
             // Edge geometry: straight line between endpoints (sufficient for routing)

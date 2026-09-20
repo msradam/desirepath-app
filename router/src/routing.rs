@@ -58,7 +58,7 @@ pub enum RoutingError {
 }
 
 /// Compute the shortest path between two node indices using the given profile.
-Pub fn shortest_path(
+pub fn shortest_path(
     graph: &StableDiGraph<OswNode, OswEdge>,
     origin: NodeIndex,
     destination: NodeIndex,
@@ -108,7 +108,7 @@ Pub fn shortest_path(
 }
 
 /// Compute the shortest path tree up to max_cost from origin.
-Pub fn shortest_path_tree(
+pub fn shortest_path_tree(
     graph: &StableDiGraph<OswNode, OswEdge>,
     origin: NodeIndex,
     max_cost: f64,
@@ -196,7 +196,7 @@ impl Ord for HeapEntry {
 
 /// Dijkstra from `origin`, optionally stopping early at `target`.
 /// Returns (dist, prev) where prev maps node → (predecessor_node, edge_index).
-Fn dijkstra(
+fn dijkstra(
     graph: &StableDiGraph<OswNode, OswEdge>,
     origin: NodeIndex,
     target: Option<NodeIndex>,
@@ -247,7 +247,7 @@ Fn dijkstra(
 }
 
 /// Dijkstra from `origin` with a cost cutoff (for path tree queries).
-Fn dijkstra_bounded(
+fn dijkstra_bounded(
     graph: &StableDiGraph<OswNode, OswEdge>,
     origin: NodeIndex,
     max_cost: f64,
