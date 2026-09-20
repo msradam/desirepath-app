@@ -1,6 +1,8 @@
 import type { privacyLog as PrivacyLogType } from '../services/privacy-log';
 import type { WasmEdge, IsochroneResult } from '../domain/route';
 import type { RouterProfileId } from '../domain/profile';
+import type { ThermalArgs } from '../domain/thermal';
+import { thermalArgsJSON } from '../domain/thermal';
 import { computeIsochrone } from '../isochrone';
 
 export type RouteResult = {
@@ -12,17 +14,19 @@ export interface PedestrianRouterAdapter {
   readonly ready: Promise<void>;
   route(opts: {
     from: [number, number]; to: [number, number]; profile: RouterProfileId; night?: boolean;
+    thermal?: ThermalArgs;
   }): RouteResult;
   shortestPathTree(opts: {
     from: [number, number]; profile: RouterProfileId; maxMinutes: number;
+    thermal?: ThermalArgs;
   }): IsochroneResult | null;
   stats(): { nodes: number; edges: number };
   getRawWasm(): unknown;
 }
 
 type WasmRouter = {
-  shortestPathJSON(profile: string, originLat: number, originLon: number, destLat: number, destLon: number, args: null): string;
-  shortestPathTreeJSON(profile: string, originLat: number, originLon: number, maxCost: number, args: null): string;
+  shortestPathJSON(profile: string, originLat: number, originLon: number, destLat: number, destLon: number, args: string | null): string;
+  shortestPathTreeJSON(profile: string, originLat: number, originLon: number, maxCost: number, args: string | null): string;
   nodeCount(): number; edgeCount(): number; addProfile(name: string, json: string): void;
 };
 
@@ -51,7 +55,7 @@ export class UnweaverWasmAdapter implements PedestrianRouterAdapter {
   async load(
     onProgress: (msg: string) => void,
     pkgUrl = '/pkg',
-    graphUrl = '/output/nyc-pedestrian.bin',
+    graphUrl = '/output/nyc-pedestrian-thermal.bin',
     examplesUrl = '/examples'
   ): Promise<void> {
     onProgress('Loading WASM module…');
@@ -94,8 +98,8 @@ export class UnweaverWasmAdapter implements PedestrianRouterAdapter {
     this._resolve();
   }
 
-  route({ from, to, profile }: { from: [number, number]; to: [number, number]; profile: RouterProfileId }): RouteResult {
-    const json = this.wasm.shortestPathJSON(profile, from[1], from[0], to[1], to[0], null);
+  route({ from, to, profile, thermal }: { from: [number, number]; to: [number, number]; profile: RouterProfileId; thermal?: ThermalArgs }): RouteResult {
+    const json = this.wasm.shortestPathJSON(profile, from[1], from[0], to[1], to[0], thermalArgsJSON(thermal));
     const res = JSON.parse(json) as { status: string; code?: string; total_cost?: number; edges?: WasmEdge[] };
     if (res.status !== 'Ok' || !res.edges) throw new Error(`No path (${res.code ?? res.status})`);
 
@@ -112,8 +116,8 @@ export class UnweaverWasmAdapter implements PedestrianRouterAdapter {
     return { cost: res.total_cost ?? length_m, length_m, coords, nodes: res.edges.length + 1, edges: res.edges };
   }
 
-  shortestPathTree({ from, profile, maxMinutes }: { from: [number, number]; profile: RouterProfileId; maxMinutes: number }): IsochroneResult | null {
-    return computeIsochrone(this.wasm, profile, from[1], from[0], maxMinutes);
+  shortestPathTree({ from, profile, maxMinutes, thermal }: { from: [number, number]; profile: RouterProfileId; maxMinutes: number; thermal?: ThermalArgs }): IsochroneResult | null {
+    return computeIsochrone(this.wasm, profile, from[1], from[0], maxMinutes, thermal);
   }
 
   stats(): { nodes: number; edges: number } {

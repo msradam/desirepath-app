@@ -2,11 +2,13 @@
 
 import type { Feature, LineString } from 'geojson';
 import type { IsochroneResult } from './domain/route';
+import type { ThermalArgs } from './domain/thermal';
+import { thermalArgsJSON } from './domain/thermal';
 
 const WALK_MPS = 1.25;
 
 type WasmIsoRouter = {
-  shortestPathTreeJSON(profile: string, lat: number, lng: number, maxCost: number, args: null): string;
+  shortestPathTreeJSON(profile: string, lat: number, lng: number, maxCost: number, args: string | null): string;
 };
 
 export function computeIsochrone(
@@ -14,13 +16,20 @@ export function computeIsochrone(
   profile: string,
   lat: number,
   lng: number,
-  maxMinutes = 15
+  maxMinutes = 15,
+  thermal?: ThermalArgs
 ): IsochroneResult | null {
+  // The budget is in metre-equivalent cost units, not metres. With heat_aware
+  // on, a minute of budget buys less ground on an exposed street than on a
+  // shaded one, which is the whole point. Real walking time is still derived
+  // from edge length, never from this cost.
   const maxCost = maxMinutes * 60 * WALK_MPS;
 
   let raw: Record<string, unknown>;
   try {
-    raw = JSON.parse(wasm.shortestPathTreeJSON(profile, lat, lng, maxCost, null)) as Record<string, unknown>;
+    raw = JSON.parse(
+      wasm.shortestPathTreeJSON(profile, lat, lng, maxCost, thermalArgsJSON(thermal))
+    ) as Record<string, unknown>;
   } catch {
     return null;
   }

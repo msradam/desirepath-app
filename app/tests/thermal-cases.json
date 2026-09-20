@@ -1,0 +1,68 @@
+{
+  "comment": "Router regression cases for the thermal cost layer. `expect` is one of: differs (the heat-aware route must take a different path), identical (there is no thermal signal, so it must not), either (recorded for the numbers, not asserted).",
+  "cases": [
+    {
+      "name": "Brownsville station to park",
+      "from": "Rockaway Avenue",
+      "to": "Betsy Head Park",
+      "profile": "generic_pedestrian",
+      "expect": "differs"
+    },
+    {
+      "name": "Brownsville cross-neighbourhood",
+      "from": "Sutter Avenue",
+      "to": "Brownsville Playground",
+      "profile": "generic_pedestrian",
+      "expect": "either"
+    },
+    {
+      "name": "Brownsville, wheelchair profile",
+      "from": "Junius Street",
+      "to": "Betsy Head Park",
+      "profile": "wheelchair",
+      "expect": "either"
+    },
+    {
+      "name": "East Harlem North",
+      "from": "125th Street Library",
+      "to": "Abraham Lincoln Playground",
+      "profile": "generic_pedestrian",
+      "expect": "either"
+    },
+    {
+      "name": "Mott Haven",
+      "from": "Mott Haven Library",
+      "to": "Governor Smith Playground",
+      "profile": "generic_pedestrian",
+      "expect": "either"
+    },
+    {
+      "name": "Tremont, Bronx",
+      "from": "Tremont Library",
+      "to": "Bathgate Playground",
+      "profile": "generic_pedestrian",
+      "expect": "either"
+    },
+    {
+      "name": "North Corona, Queens",
+      "from": "Queens Public Library at Corona",
+      "to": "Park of the Americas",
+      "profile": "generic_pedestrian",
+      "expect": "either"
+    },
+    {
+      "name": "No thermal signal: outside every surveyed neighbourhood",
+      "from": "Penn Station",
+      "to": "Grand Central",
+      "profile": "generic_pedestrian",
+      "expect": "identical"
+    },
+    {
+      "name": "No thermal signal: lower Manhattan",
+      "from": "Union Square",
+      "to": "Washington Square Park",
+      "profile": "generic_pedestrian",
+      "expect": "identical"
+    }
+  ]
+}

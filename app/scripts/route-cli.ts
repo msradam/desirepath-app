@@ -32,6 +32,7 @@ import type { TransitRouterAdapter } from '../src/lib/adapters/transit-router.ts
 import { FuseGeocoderAdapter } from '../src/lib/adapters/geocoder.ts';
 import type { GeocoderAdapter } from '../src/lib/adapters/geocoder.ts';
 import { resolveImpactedInternal } from '../src/lib/adapters/feed-mta-outages.ts';
+import { thermalArgsJSON, routeThermalStats, THERMAL_ON, THERMAL_OFF } from '../src/lib/domain/thermal.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,8 +62,14 @@ async function makePedestrianAdapter(): Promise<PedestrianRouterAdapter & { wasm
   const wasmBytes = fs.readFileSync(path.join(PKG, 'unweaver_wasm_bg.wasm'));
   await wasmMod.default({ module_or_path: wasmBytes });
 
-  log(c.dim(`Loading pedestrian graph from ${path.relative(REPO_ROOT, path.join(DATA, 'nyc-pedestrian.bin'))}…`));
-  const graphBytes = fs.readFileSync(path.join(DATA, 'nyc-pedestrian.bin'));
+  const thermalGraph = path.join(DATA, 'nyc-pedestrian-thermal.bin');
+  const baseGraph = path.join(DATA, 'nyc-pedestrian.bin');
+  const graphPath = fs.existsSync(thermalGraph) ? thermalGraph : baseGraph;
+  if (graphPath === baseGraph) {
+    log(c.yellow('  no thermal graph found; run `uv run python -m pipeline.thermal build` for MRT'));
+  }
+  log(c.dim(`Loading pedestrian graph from ${path.relative(REPO_ROOT, graphPath)}…`));
+  const graphBytes = fs.readFileSync(graphPath);
   const wasm = wasmMod.Router.fromBinary(new Uint8Array(graphBytes));
 
   for (const id of ['manual_wheelchair', 'generic_pedestrian', 'low_vision'] as const) {
@@ -82,8 +89,8 @@ async function makePedestrianAdapter(): Promise<PedestrianRouterAdapter & { wasm
   return {
     wasm,
     ready: Promise.resolve(),
-    route({ from, to, profile }) {
-      const json = wasm.shortestPathJSON(profile, from[1], from[0], to[1], to[0], null);
+    route({ from, to, profile, thermal }) {
+      const json = wasm.shortestPathJSON(profile, from[1], from[0], to[1], to[0], thermalArgsJSON(thermal));
       const res = JSON.parse(json) as { status: string; code?: string; total_cost?: number; edges?: WasmEdge[] };
       if (res.status !== 'Ok' || !res.edges) throw new Error(`No path (${res.code ?? res.status})`);
       const coords: [number, number][] = [];
@@ -97,8 +104,8 @@ async function makePedestrianAdapter(): Promise<PedestrianRouterAdapter & { wasm
         ? coords.slice(1).reduce((sum, pt, i) => sum + haversineM(coords[i], pt), 0) : 0;
       return { cost: res.total_cost ?? length_m, length_m, coords, nodes: res.edges.length + 1, edges: res.edges } as RouteResult;
     },
-    shortestPathTree({ from, profile, maxMinutes }): IsochroneResult | null {
-      return computeIsochrone(wasm, profile, from[1], from[0], maxMinutes);
+    shortestPathTree({ from, profile, maxMinutes, thermal }): IsochroneResult | null {
+      return computeIsochrone(wasm, profile, from[1], from[0], maxMinutes, thermal);
     },
     stats() { return { nodes: wasm.nodeCount(), edges: wasm.edgeCount() }; },
     getRawWasm() { return wasm; },
@@ -188,12 +195,14 @@ function loadComfort(): ComfortFeature[] {
 // ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
   const [, , cmd, ...rest] = process.argv;
-  if (!cmd || !['plan', 'find', 'reach', 'geocode', 'diagnose'].includes(cmd)) {
+  if (!cmd || !['plan', 'find', 'reach', 'geocode', 'diagnose', 'thermal', 'thermal-suite'].includes(cmd)) {
     console.error('Usage:');
     console.error('  npx tsx scripts/route-cli.ts plan "<from>" "<to>" [profile]');
     console.error('  npx tsx scripts/route-cli.ts find "<near>" "<resource_type>" [profile]');
     console.error('  npx tsx scripts/route-cli.ts reach "<near>" "<resource_type>" [max_minutes]');
     console.error('  npx tsx scripts/route-cli.ts geocode "<query>"');
+    console.error('  npx tsx scripts/route-cli.ts thermal "<from>" "<to>" [profile]   # shortest vs heat-aware');
+    console.error('  npx tsx scripts/route-cli.ts thermal-suite                        # the regression battery');
     console.error('\nProfiles: generic_pedestrian | wheelchair | low_vision | slow_walker | stroller');
     console.error('Resource types: cool_indoor warm_indoor bathroom seating quiet_indoor wifi_power');
     console.error('               linknyc food_pantry senior_center harm_reduction medical mental_health');
@@ -326,6 +335,131 @@ async function main() {
       }
       break;
     }
+    return;
+  }
+
+  if (cmd === 'thermal-suite') {
+    const spec = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/thermal-cases.json'), 'utf8'));
+    const PM: Record<string, RouterProfileId> = {
+      wheelchair: 'manual_wheelchair', manual_wheelchair: 'manual_wheelchair',
+      slow_walker: 'generic_pedestrian', stroller: 'generic_pedestrian',
+      low_vision: 'low_vision', generic_pedestrian: 'generic_pedestrian',
+    };
+    const rows: string[] = [];
+    let failures = 0;
+
+    for (const t of spec.cases) {
+      const a = await geocoder.geocodeAsync(t.from);
+      const b = await geocoder.geocodeAsync(t.to);
+      if (!a || !b) {
+        rows.push(`  ${c.red('GEOCODE')}  ${t.name}: ${!a ? t.from : t.to}`);
+        failures++;
+        continue;
+      }
+      const p = PM[t.profile] ?? 'generic_pedestrian';
+      let shortest, heat;
+      try {
+        shortest = pedestrian.route({ from: [a.lng, a.lat], to: [b.lng, b.lat], profile: p, thermal: THERMAL_OFF });
+        heat = pedestrian.route({ from: [a.lng, a.lat], to: [b.lng, b.lat], profile: p, thermal: THERMAL_ON });
+      } catch (e) {
+        rows.push(`  ${c.red('NO PATH')}  ${t.name}: ${(e as Error).message}`);
+        failures++;
+        continue;
+      }
+      const sStats = routeThermalStats(shortest.edges as Array<{ mrt?: unknown; length?: unknown }>);
+      const hStats = routeThermalStats(heat.edges as Array<{ mrt?: unknown; length?: unknown }>);
+      const dLen = heat.length_m - shortest.length_m;
+      const differs = Math.abs(dLen) >= 0.5;
+
+      let verdict = c.dim('  rec  ');
+      if (t.expect === 'differs') { if (differs) verdict = c.green('  pass '); else { verdict = c.red('  FAIL '); failures++; } }
+      if (t.expect === 'identical') { if (!differs) verdict = c.green('  pass '); else { verdict = c.red('  FAIL '); failures++; } }
+
+      const dMean = (hStats.mean_mrt_c ?? 0) - (sStats.mean_mrt_c ?? 0);
+      const cover = `${(sStats.surveyed_share * 100).toFixed(0)}/${(hStats.surveyed_share * 100).toFixed(0)}%`;
+      const meanCell = sStats.mean_mrt_c === null
+        ? '    no MRT data'
+        : `${sStats.mean_mrt_c.toFixed(1)} -> ${hStats.mean_mrt_c!.toFixed(1)} C`;
+      rows.push(
+        `${verdict} ${t.name.padEnd(46)} ${Math.round(shortest.length_m).toString().padStart(6)} m ` +
+        `${(dLen >= 0 ? '+' : '') + Math.round(dLen).toString()}`.padStart(8) +
+        ` m  ${meanCell.padStart(18)}  ${(dMean <= 0 ? '' : '+') + dMean.toFixed(1)} C`.padEnd(12) +
+        `  ${cover.padStart(9)}`
+      );
+    }
+
+    log(c.bold('\n  verdict  case                                           shortest    delta            mean MRT     change   surveyed'));
+    for (const r of rows) log(r);
+    log('');
+    log(failures === 0 ? c.green(`  ${spec.cases.length} cases, 0 failures`) : c.red(`  ${spec.cases.length} cases, ${failures} failures`));
+    log(c.dim('  MRT source: proxy (shadow and sky-view-factor), NOT SOLWEIG.'));
+    if (failures) process.exitCode = 1;
+    return;
+  }
+
+  if (cmd === 'thermal') {
+    const [from, to, profile = 'generic_pedestrian'] = rest;
+    const a = await geocoder.geocodeAsync(from);
+    const b = await geocoder.geocodeAsync(to);
+    if (!a) { log(c.red(`origin geocode miss: ${from}`)); return; }
+    if (!b) { log(c.red(`destination geocode miss: ${to}`)); return; }
+
+    const PM: Record<string, RouterProfileId> = {
+      wheelchair: 'manual_wheelchair', manual_wheelchair: 'manual_wheelchair',
+      slow_walker: 'generic_pedestrian', stroller: 'generic_pedestrian',
+      low_vision: 'low_vision', generic_pedestrian: 'generic_pedestrian',
+    };
+    const p = PM[profile] ?? 'generic_pedestrian';
+    log(`${a.display} -> ${b.display}   profile=${c.bold(p)}`);
+
+    const variants = [
+      { label: 'shortest   ', thermal: THERMAL_OFF },
+      { label: 'heat-aware ', thermal: THERMAL_ON },
+    ];
+    const results = variants.map((v) => {
+      const r = pedestrian.route({ from: [a.lng, a.lat], to: [b.lng, b.lat], profile: p, thermal: v.thermal });
+      const stats = routeThermalStats(r.edges as Array<{ mrt?: unknown; length?: unknown }>);
+      return { ...v, r, stats };
+    });
+
+    log('');
+    log(c.bold('              distance   walk    mean MRT   peak MRT   surveyed'));
+    for (const { label, r, stats } of results) {
+      const mins = (r.length_m / 1.25 / 60).toFixed(1);
+      const mean = stats.mean_mrt_c === null ? '     n/a' : `${stats.mean_mrt_c.toFixed(1)} C`;
+      const peak = stats.max_mrt_c === null ? '     n/a' : `${stats.max_mrt_c.toFixed(1)} C`;
+      log(`  ${label}${Math.round(r.length_m).toString().padStart(7)} m ${mins.padStart(6)} min   ${mean.padStart(7)}    ${peak.padStart(7)}   ${(stats.surveyed_share * 100).toFixed(0).padStart(3)}%`);
+    }
+
+    const [shortest, thermal] = results;
+    const dLen = thermal.r.length_m - shortest.r.length_m;
+    const dPct = (dLen / Math.max(1, shortest.r.length_m)) * 100;
+    const identical = Math.abs(dLen) < 0.5;
+
+    // An unsurveyed edge carries no thermal penalty, so a heat-aware route is
+    // rewarded for leaving coverage. If the two routes differ much in how much
+    // of their length was surveyed, the MRT delta is measuring that escape and
+    // not a genuine preference for shade. Refuse to report it rather than
+    // quietly publish a flattering number.
+    const coverageGap = Math.abs(thermal.stats.surveyed_share - shortest.stats.surveyed_share);
+    log('');
+    if (!identical && coverageGap > 0.05) {
+      log(c.yellow(`  coverage differs by ${(coverageGap * 100).toFixed(0)} points between the two routes.`));
+      log(c.yellow('  Not reporting a delta: the heat-aware route may simply be leaving the surveyed area,'));
+      log(c.yellow('  where edges carry no penalty. Pick an origin and destination inside one neighbourhood.'));
+      log(c.dim('\n  MRT source: proxy (shadow and sky-view-factor), NOT SOLWEIG. See data/thermal/*.json'));
+      return;
+    }
+    if (identical) {
+      log(c.dim('  routes are identical. No thermal signal on this pair, or no cooler alternative exists.'));
+    } else {
+      const dMean = (thermal.stats.mean_mrt_c ?? 0) - (shortest.stats.mean_mrt_c ?? 0);
+      const dPeak = (thermal.stats.max_mrt_c ?? 0) - (shortest.stats.max_mrt_c ?? 0);
+      log(`  ${c.bold('delta')}  ${dLen >= 0 ? '+' : ''}${Math.round(dLen)} m (${dPct >= 0 ? '+' : ''}${dPct.toFixed(1)}%) to drop mean MRT by ${(-dMean).toFixed(1)} C and peak MRT by ${(-dPeak).toFixed(1)} C`);
+      const extraSeconds = dLen / 1.25;
+      log(c.dim(`         that is ${extraSeconds.toFixed(0)} s of extra walking, priced against ${(-dMean).toFixed(1)} C of mean radiant temperature`));
+    }
+    log(c.dim('\n  MRT source: proxy (shadow and sky-view-factor), NOT SOLWEIG. See data/thermal/*.json'));
     return;
   }
 
