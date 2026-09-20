@@ -45,8 +45,21 @@ const server = createServer((req, res) => {
   // ── the model ─────────────────────────────────────────────────────────────
   if (path === '/ollama' || path.startsWith('/ollama/')) {
     const upstream = path.slice('/ollama'.length) || '/';
+
+    // Strip the browser's Origin and Referer before forwarding.
+    //
+    // Ollama enforces its own origin allowlist and answers 403 to anything
+    // that is not localhost. Passing the page's Origin through made every
+    // request from the deployed Space fail with
+    // "Ollama could not load granite4:micro: 403", while curl worked, because
+    // curl sends no Origin. THIS server is the client here, not the browser,
+    // and a server-side proxy has no business claiming a browser origin.
+    const headers = { ...req.headers, host: `${OLLAMA.host}:${OLLAMA.port}` };
+    delete headers.origin;
+    delete headers.referer;
+
     const proxied = httpRequest(
-      { ...OLLAMA, path: upstream + url.search, method: req.method, headers: { ...req.headers, host: `${OLLAMA.host}:${OLLAMA.port}` } },
+      { ...OLLAMA, path: upstream + url.search, method: req.method, headers },
       (up) => {
         res.writeHead(up.statusCode ?? 502, { ...up.headers, ...ISOLATION });
         up.pipe(res);

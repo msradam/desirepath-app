@@ -30,6 +30,7 @@ RUN chmod +x /tmp/pull-model.sh && /tmp/pull-model.sh && rm /tmp/pull-model.sh
 # swallows it, and every later `chown user:user` dies with "invalid user".
 ENV HOME=/home/user \
     OLLAMA_HOST=127.0.0.1:11434 \
+    OLLAMA_ORIGINS=http://127.0.0.1:*,http://localhost:* \
     PORT=7860
 
 WORKDIR /app

@@ -510,6 +510,14 @@ async function main() {
       const claimed: number[][][] = [];
       const reachable: number[][][] = [];
       const shortfall: number[][][] = [];
+      // The denominator.
+      //
+      // Without it the map showed three sets of marks floating on a basemap
+      // and no way to see what share of anything they were: "56.8% covered"
+      // had nothing to be 56.8% OF. This is every segment the quarter mile
+      // does not reach even as the crow flies, which is what makes the other
+      // three legible as proportions.
+      const uncovered: number[][][] = [];
       for (const sg of segments) {
         const inR = both(radius, sg);
         const inH = both(heat, sg);
@@ -518,6 +526,7 @@ async function main() {
         // The figure of the comparison: pavement the quarter mile counts as
         // covered that a heat-burdened resident cannot actually walk to.
         if (inR && !inH) shortfall.push(round(sg.coords));
+        if (!inR) uncovered.push(round(sg.coords));
       }
 
       coverageOut[label] = {
@@ -527,7 +536,7 @@ async function main() {
         radius: { nodes: radius.size, share: pct(radius), km2: km2(radius) },
         network: { nodes: walk.size, share: pct(walk), km2: km2(walk) },
         thermal: { nodes: heat.size, share: pct(heat), km2: km2(heat) },
-        geometry: { claimed, reachable, shortfall },
+        geometry: { claimed, reachable, shortfall, uncovered },
       };
     }
     // Written for the comparison view to render. Computing it here keeps the
