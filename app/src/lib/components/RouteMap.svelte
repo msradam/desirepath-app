@@ -73,7 +73,37 @@
     const color = ROUTE_COLOR;
     const legs = result.multimodal_legs ?? [{ kind: 'walk' as const, from: result.origin_name, to: result.destination_name, coords: result.coords, length_m: 0, cost: 0, edges: [] }];
 
-    (map.getSource('walk') as any).setData({ type: 'FeatureCollection', features: legs.filter((l) => l.kind === 'walk').map((l) => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: l.coords }, properties: { color } })) });
+    // One feature per EDGE, not per leg, so the line can be painted by the
+    // mean radiant temperature of the pavement it runs along. This is the
+    // thing the product is about: the route is a line on a map in any router,
+    // and the only way to see what this one bought is to see where it is hot.
+    //
+    // Edges with no `mrt` are unsurveyed, and they are drawn in bone rather
+    // than at the cool end of the ramp, because "not measured" and "measured
+    // and cool" are different facts and 92% of the city is the first one.
+    const walkFeatures: GeoJSON.Feature[] = [];
+    for (const leg of legs.filter((l) => l.kind === 'walk')) {
+      const edges = (leg as { edges?: Array<Record<string, unknown>> }).edges ?? [];
+      const usable = edges.filter(
+        (e) => (e.geom as { coordinates?: unknown[] } | undefined)?.coordinates?.length,
+      );
+      if (usable.length === 0) {
+        walkFeatures.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: leg.coords },
+          properties: { color, mrt: null },
+        });
+        continue;
+      }
+      for (const e of usable) {
+        walkFeatures.push({
+          type: 'Feature',
+          geometry: e.geom as GeoJSON.LineString,
+          properties: { color, mrt: typeof e.mrt === 'number' ? e.mrt : null },
+        });
+      }
+    }
+    (map.getSource('walk') as any).setData({ type: 'FeatureCollection', features: walkFeatures });
     (map.getSource('transit') as any).setData({ type: 'FeatureCollection', features: legs.filter((l) => l.kind === 'transit').map((l) => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: l.coords }, properties: {} })) });
 
     if (result.coords.length > 1) {
@@ -247,7 +277,39 @@
     map.on('mouseleave', 'poi-circle', () => { if (map) map.getCanvas().style.cursor = $isochroneMode ? 'crosshair' : 'default'; });
 
     // Walk + transit route lines
-    map.addLayer({ id: 'walk-line',    type: 'line', source: 'walk',    layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': 5, 'line-opacity': 0.9 } });
+    // The route, painted by exposure.
+    //
+    // The ramp runs between the same two anchors the cost function uses, so
+    // what the eye reads off the map and what Dijkstra charged are the same
+    // quantity: 33 C is full building shade at the reference meteorology and
+    // 61.8 C is open sun. Unsurveyed edges fall through to bone.
+    map.addLayer({
+      id: 'walk-casing',
+      type: 'line',
+      source: 'walk',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': '#0A1B2D', 'line-width': 8, 'line-opacity': 0.9 },
+    });
+    map.addLayer({
+      id: 'walk-line',
+      type: 'line',
+      source: 'walk',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': [
+          'case',
+          ['==', ['get', 'mrt'], null], '#F5F1E8',
+          ['interpolate', ['linear'], ['get', 'mrt'],
+            33.01, '#3BB8D4',
+            47.4,  '#7FD6E8',
+            55.0,  '#FFD84D',
+            61.8,  '#FFC400',
+            70.0,  '#FF8A00'],
+        ],
+        'line-width': 5,
+        'line-opacity': 1,
+      },
+    });
     map.addLayer({ id: 'transit-line', type: 'line', source: 'transit', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#e3b341', 'line-width': 5, 'line-opacity': 0.85, 'line-dasharray': [2, 1.5] } });
 
     map.on('click', (e) => {
@@ -413,19 +475,47 @@
     :global(.user-location-marker) { animation: none; }
   }
 
-  /* Hide attribution */
-  :global(.maplibregl-ctrl-attrib-inner) { display: none !important; }
-  :global(.maplibregl-ctrl-attrib-button) { display: none !important; }
-  :global(.maplibregl-ctrl-bottom-right) { display: none !important; }
-
-  /* MapLibre overrides. Light theme */
+  /* Attribution.
+     It was hidden outright with three display:none rules. OpenStreetMap and
+     OpenFreeMap both require it, and the coverage map was already showing it,
+     so the routing map was the odd one out and the wrong one. */
+  :global(.maplibregl-ctrl-bottom-left) { z-index: 9; }
   :global(.maplibregl-ctrl-attrib) {
-    background: rgba(255,255,255,0.8) !important;
+    background: var(--slate-2) !important;
     color: var(--muted) !important;
-    font-family: var(--font-sans) !important;
+    font-family: var(--font-mono) !important;
     font-size: 10px !important;
+    border-radius: 0 !important;
+    border: var(--rule-hair) solid var(--subtle);
   }
   :global(.maplibregl-ctrl-attrib a) { color: var(--muted) !important; }
+
+  /* Zoom and locate, in the same vocabulary as everything else: square,
+     recessed ground, hairline rule, no drop shadow. */
+  :global(.maplibregl-ctrl-group) {
+    background: var(--slate-2) !important;
+    border: var(--rule-hair) solid var(--subtle) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  :global(.maplibregl-ctrl-group button) {
+    width: 34px !important;
+    height: 34px !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+  }
+  :global(.maplibregl-ctrl-group button + button) {
+    border-top: var(--rule-hair) solid var(--subtle) !important;
+  }
+  :global(.maplibregl-ctrl-group button:hover) { background: var(--slate-3) !important; }
+  :global(.maplibregl-ctrl-group button:focus-visible) {
+    outline: 3px solid var(--hivis) !important;
+    outline-offset: -3px;
+  }
+  /* The default control glyphs are dark SVGs baked into MapLibre's stylesheet
+     and vanish on a dark ground. Inverting is the one line that fixes all of
+     them without shipping our own icon set. */
+  :global(.maplibregl-ctrl-group button .maplibregl-ctrl-icon) { filter: invert(1); }
   :global(.maplibregl-popup-content) {
     background: var(--surface) !important;
     color: var(--ink) !important;

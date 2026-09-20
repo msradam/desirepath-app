@@ -24,6 +24,8 @@
   import { CONDITION_DEFAULTS, CONDITION_EFFECTS } from '$lib/domain/condition-effects';
   import type { TravelProfile } from '$lib/domain/profile-grammar';
   import { CONDITION_LABELS } from '$lib/domain/profile-grammar';
+  import { routeThermalStats } from '$lib/domain/thermal';
+  import { REFERENCE_METEOROLOGY } from '$lib/domain/thermal-constants';
   import { dispatchFor, TOOL_LABELS } from '$lib/domain/dispatch';
   import type { Tool } from '$lib/domain/dispatch';
 
@@ -211,6 +213,15 @@
                 distM: Math.round(result.length_m ?? 0),
                 profile: result.profile,
                 hasTransit: !!(result.multimodal_legs?.some((l: any) => l.kind === 'transit')),
+                // What the route's own pavement is like. Computed here from
+                // the edges the router returned, so the number on the card and
+                // the colour on the map come from the same data.
+                thermal: routeThermalStats(
+                  (result.multimodal_legs ?? [])
+                    .filter((l: any) => l.kind === 'walk')
+                    .flatMap((l: any) => (l.edges ?? []) as Array<Record<string, unknown>>)
+                    .map((e) => ({ mrt: e.mrt, length: e.length })),
+                ),
               }
             });
             routeMap?.drawRoute(result);
@@ -465,26 +476,6 @@
   }
 
   // Date for plate overlay
-  let now = $state(new Date());
-  $effect(() => {
-    const id = setInterval(() => { now = new Date(); }, 60_000);
-    return () => clearInterval(id);
-  });
-
-  const plateDateStr = $derived(
-    now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).toUpperCase() + ' · ' +
-    now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' EDT'
-  );
-
-  const siteCountStr = $derived.by(() => {
-    const rs = $routeState;
-    if (rs.kind === 'route') return '1 site';
-    if (rs.kind === 'reachable') {
-      const n = rs.result.pois.length;
-      return `${n} site${n === 1 ? '' : 's'}`;
-    }
-    return null;
-  });
 
   // Derive the active/last entry for ActiveRecord
   const activeEntry = $derived(
@@ -492,6 +483,9 @@
   );
 </script>
 
+<h1 class="sr-only">
+  DesirePath: plan a walk in New York with heat and accessibility priced into every metre
+</h1>
 <div class="page-layout">
   <!-- Left: query log + active record -->
   <div class="left-col" aria-label="Query record">
@@ -582,29 +576,49 @@
       <!-- Floating search bar -->
       <SearchBar />
 
-      <!-- Date stamp (top-right) -->
-      <div class="plate-date" aria-hidden="true">
-        <div class="plate-eyebrow">SURVEYED{siteCountStr ? ` · ${siteCountStr.toUpperCase()}` : ''}</div>
-        <div class="plate-datestr tnum">{plateDateStr}</div>
+      <!--
+        The conditions the heat model is conditioned on.
+        This was a wall clock and a site count, which is decoration: the
+        radiant field is a single design-hour snapshot and does not know what
+        time it is. Saying which hour it does know is provenance, and it is the
+        honest answer to "is this live?".
+      -->
+      <div class="plate-date">
+        <p class="plate-eyebrow">Heat modelled at</p>
+        <p class="plate-datestr tnum">{REFERENCE_METEOROLOGY.air_temp_c}&deg;C air &middot; clear sky</p>
+        <p class="plate-src">NWS heat advisory threshold, 21 Jul 15:00</p>
       </div>
 
-      <!-- Legend (bottom-right). Hidden when route strip is showing -->
-      {#if $routeState.kind !== 'route'}
-      <div class="plate-legend" aria-hidden="true">
-        <div class="legend-eyebrow">LEGEND</div>
-        <div class="legend-row">
-          <span class="legend-swatch legend-swatch--cooling"></span>
-          <span class="legend-label">Cooling center</span>
+      <!--
+        What the route's colour means.
+        The route is painted by the radiant temperature of the pavement it runs
+        along, on the same two anchors the cost function uses, so the scale is
+        shown as a scale rather than as three swatches in a box. This replaced
+        a legend that named the line "Active route", which is true of every
+        router and says nothing about this one.
+      -->
+      {#if $routeState.kind === 'route'}
+        <div class="mrt-scale" aria-hidden="true">
+          <p class="mrt-title">Radiant temperature along the route</p>
+          <div class="mrt-ramp"></div>
+          <div class="mrt-ticks">
+            <span>33°<span class="mrt-note">shade</span></span>
+            <span>48°</span>
+            <span>62°<span class="mrt-note">full sun</span></span>
+          </div>
+          <p class="mrt-unsurveyed"><span class="mrt-bone"></span>not surveyed</p>
         </div>
-        <div class="legend-row">
-          <span class="legend-swatch legend-swatch--access"></span>
-          <span class="legend-label">Step-free station</span>
+      {:else}
+        <div class="plate-legend" aria-hidden="true">
+          <div class="legend-row">
+            <span class="legend-swatch legend-swatch--cooling"></span>
+            <span class="legend-label">Cooling element</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch legend-swatch--access"></span>
+            <span class="legend-label">Step-free station</span>
+          </div>
         </div>
-        <div class="legend-row">
-          <span class="legend-swatch legend-swatch--route"></span>
-          <span class="legend-label">Active route</span>
-        </div>
-      </div>
       {/if}
 
       <!-- Bottom route strip (only when a single route is active) -->
@@ -718,11 +732,14 @@
     background: var(--bg);
   }
 
+  /* A full rule above it, not a coloured tab down the side. The tab is the
+     most recognisable tell in machine-made UI and it was doing no work here
+     that the ground and the heading were not already doing. */
   .inferred {
     margin: 0 14px 14px;
-    padding: 14px 16px 16px;
+    padding: 13px 16px 16px;
     background: var(--slate-3);
-    border-left: 3px solid var(--hivis);
+    border-top: var(--rule-heavy) solid var(--hivis);
   }
 
   .inferred h2 {
@@ -815,6 +832,13 @@
     pointer-events: none;
   }
 
+  .plate-src {
+    margin-top: 3px;
+    font-size: 0.64rem;
+    line-height: 1.35;
+    color: var(--muted);
+  }
+
   .plate-eyebrow {
     font-size: 9px;
     font-weight: 800;
@@ -832,6 +856,70 @@
     margin-top: 2px;
   }
 
+  /* The scale, drawn from the same anchors the router charges on. */
+  .mrt-scale {
+    position: absolute;
+    right: 16px;
+    bottom: 120px;
+    z-index: 11;
+    width: 220px;
+    padding: 11px 13px 10px;
+    background: var(--slate-2);
+    border: var(--rule-hair) solid var(--subtle);
+  }
+
+  .mrt-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--bone);
+  }
+
+  .mrt-ramp {
+    height: 9px;
+    margin-top: 8px;
+    border: 1px solid var(--subtle);
+    background: linear-gradient(
+      to right,
+      #3BB8D4 0%,
+      #7FD6E8 36%,
+      #FFD84D 72%,
+      #FFC400 92%,
+      #FF8A00 100%
+    );
+  }
+
+  .mrt-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .mrt-note {
+    display: block;
+    font-weight: 400;
+    text-transform: lowercase;
+  }
+  .mrt-ticks span:last-child { text-align: right; }
+
+  .mrt-unsurveyed {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 8px;
+    font-size: 0.66rem;
+    color: var(--muted);
+  }
+  .mrt-bone {
+    width: 18px;
+    height: 4px;
+    background: var(--bone);
+    border: 1px solid var(--subtle);
+  }
+
   .plate-legend {
     position: absolute;
     bottom: 16px;
@@ -842,16 +930,6 @@
     min-width: 180px;
     z-index: 10;
     pointer-events: none;
-  }
-
-  .legend-eyebrow {
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.20em;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    margin-bottom: 8px;
   }
 
   .legend-row {
@@ -886,13 +964,6 @@
   }
 
   /* Route: line */
-  .legend-swatch--route {
-    width: 18px;
-    height: 4px;
-    background: var(--route);
-    border-radius: 2px;
-  }
-
   .legend-label {
     font-size: 11px;
     font-weight: 600;
@@ -1125,7 +1196,71 @@
       width: 36px !important;
       height: 36px !important;
     }
-    .plate-legend {
+    /* The scale, drawn from the same anchors the router charges on. */
+  .mrt-scale {
+    position: absolute;
+    right: 16px;
+    bottom: 120px;
+    z-index: 11;
+    width: 220px;
+    padding: 11px 13px 10px;
+    background: var(--slate-2);
+    border: var(--rule-hair) solid var(--subtle);
+  }
+
+  .mrt-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--bone);
+  }
+
+  .mrt-ramp {
+    height: 9px;
+    margin-top: 8px;
+    border: 1px solid var(--subtle);
+    background: linear-gradient(
+      to right,
+      #3BB8D4 0%,
+      #7FD6E8 36%,
+      #FFD84D 72%,
+      #FFC400 92%,
+      #FF8A00 100%
+    );
+  }
+
+  .mrt-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .mrt-note {
+    display: block;
+    font-weight: 400;
+    text-transform: lowercase;
+  }
+  .mrt-ticks span:last-child { text-align: right; }
+
+  .mrt-unsurveyed {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 8px;
+    font-size: 0.66rem;
+    color: var(--muted);
+  }
+  .mrt-bone {
+    width: 18px;
+    height: 4px;
+    background: var(--bone);
+    border: 1px solid var(--subtle);
+  }
+
+  .plate-legend {
       display: none;          /* free up bottom-right corner on phones */
     }
     .map-toolbar {

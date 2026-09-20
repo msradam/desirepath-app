@@ -93,7 +93,7 @@
       aria-valuemax={100}
       aria-label="Loading progress"
     >
-      <div class="bar-fill" style="width:{$loadProgress}%"></div>
+      <div class="bar-fill" style="transform:scaleX({Math.max(0, Math.min(100, $loadProgress)) / 100})"></div>
     </div>
     <div class="bar-meta tnum mono">
       <span>{mbLoaded} / 30 MB</span>
@@ -212,11 +212,16 @@
     overflow: hidden;
   }
 
+  /* Animating `width` lays out and paints on every frame. `transform` on a
+     full-width bar does the same job on the compositor, and the square end
+     matches everything else here. */
   .bar-fill {
     height: 100%;
-    background: var(--primary);
-    border-radius: 999px;
-    transition: width 0.2s ease;
+    width: 100%;
+    transform-origin: left center;
+    background: var(--reach);
+    border-radius: 0;
+    transition: transform 0.2s ease-out;
   }
 
   .bar-meta {

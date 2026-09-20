@@ -123,6 +123,11 @@
 
   .search-input {
     flex: 1;
+    /* The control's own box has to clear the 24px minimum, not just the
+       container it sits in: a pointer landing 3px below the text is landing on
+       the wrapper, and only the input takes the caret. */
+    min-height: 26px;
+    padding: 2px 0;
     border: none;
     outline: none;
     background: transparent;

@@ -93,16 +93,24 @@
     min-height: 32px;
   }
 
+  /* State is carried by the ground and by the row's own marker, not by a
+     coloured tab down one side. The two rules this replaced also still held
+     oklch colours from the palette before last. */
   .entry-row.entry-active {
-    background: oklch(0.55 0.13 145 / 0.10);
-    border-left: 3px solid var(--primary);
-    padding-left: 11px;
+    background: var(--slate-3);
+  }
+  .entry-row.entry-active .entry-num {
+    color: var(--reach);
   }
 
-  .entry-row.entry-error {
-    background: oklch(0.55 0.20 28 / 0.08);
-    border-left: 3px solid var(--error);
-    padding-left: 11px;
+  .entry-row.entry-error .entry-num {
+    color: var(--hivis);
+  }
+  .entry-row.entry-error .entry-text {
+    text-decoration: underline;
+    text-decoration-style: wavy;
+    text-decoration-color: var(--hivis);
+    text-underline-offset: 3px;
   }
 
   .entry-num {

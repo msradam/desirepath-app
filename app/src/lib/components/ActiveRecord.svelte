@@ -35,44 +35,63 @@
 
       {#if entry.record.card}
         {@const card = entry.record.card}
-        {@const eyebrow = card.kind === 'route'
-          ? `CLOSEST MATCH · ${card.hasTransit ? 'WALK + SUBWAY' : 'STEP-FREE'}`
-          : `CLOSEST MATCH · ${(card.destTypes[0] ?? 'PLACE').replace(/_/g, ' ').toUpperCase()}`}
-        <!-- Card header -->
+        <!--
+          The destination leads. It used to sit under a kicker reading
+          "CLOSEST MATCH · STEP-FREE", which is a label above a heading and
+          says nothing the facts line below cannot say as a fact.
+        -->
         <div class="card-header">
-          <div class="card-eyebrow">{eyebrow}</div>
-          <div class="card-name">{card.destName}</div>
+          <h3 class="card-name">{card.destName}</h3>
           {#if card.destAddress}
-            <div class="card-address">{card.destAddress}</div>
+            <p class="card-address">{card.destAddress}</p>
           {/if}
         </div>
 
-        <!-- Stats grid -->
-        <div class="stats-grid">
-          <div class="stat">
-            <div class="stat-label">Walk</div>
-            <div class="stat-val tnum">{card.totalMin}</div>
-            <div class="stat-unit">min</div>
-          </div>
+        <!--
+          One line of facts, not a wall of oversized numerals.
+          This was three big stats in boxes, which is the hero-metric template
+          every dashboard ships, and the bottom strip already repeats every one
+          of them. What is left is the thing the strip does not say.
+        -->
+        <p class="facts">
+          <span class="fact"><span class="fact-n tnum">{card.totalMin}</span> min</span>
           {#if card.kind === 'route'}
-            <div class="stat">
-              <div class="stat-label">Distance</div>
-              <div class="stat-val tnum">{(card.distM / 1609).toFixed(1)}</div>
-              <div class="stat-unit">mi</div>
-            </div>
+            <span class="fact"><span class="fact-n tnum">{(card.distM / 1609).toFixed(1)}</span> mi</span>
           {:else}
-            <div class="stat">
-              <div class="stat-label">Found</div>
-              <div class="stat-val tnum">{card.count}</div>
-              <div class="stat-unit">{card.count === 1 ? 'site' : 'sites'}</div>
-            </div>
+            <span class="fact"><span class="fact-n tnum">{card.count}</span> {card.count === 1 ? 'site' : 'sites'}</span>
           {/if}
-          <div class="stat">
-            <div class="stat-label">Profile</div>
-            <div class="stat-val stat-val--sm">{card.profile.replace(/_/g, ' ')}</div>
-            <div class="stat-unit">&nbsp;</div>
+          <span class="fact fact-profile">{card.profile.replace(/_/g, ' ')}</span>
+          {#if card.kind === 'route'}
+            <span class="fact fact-mode">{card.hasTransit ? 'walk + subway' : 'step-free'}</span>
+          {/if}
+        </p>
+
+        <!--
+          The pavement this route actually crosses. It is the one reading no
+          other router produces, so it gets its own line rather than a box in a
+          grid, and it says "not surveyed" where there is no data instead of
+          quietly showing a number for 7.67% of the city as though it covered
+          all of it.
+        -->
+        {#if card.kind === 'route' && card.thermal}
+          {@const t = card.thermal}
+          <div class="thermal">
+            <p class="thermal-label">Radiant temperature along the way</p>
+            {#if t.mean_mrt_c === null}
+              <p class="thermal-none">Not surveyed. This route leaves the five neighbourhoods with a thermal model.</p>
+            {:else}
+              <p class="thermal-read">
+                <span class="thermal-n tnum">{t.mean_mrt_c.toFixed(1)}<span class="deg">°C</span></span>
+                <span class="thermal-sub">mean</span>
+                <span class="thermal-n thermal-n--peak tnum">{(t.max_mrt_c ?? 0).toFixed(1)}<span class="deg">°C</span></span>
+                <span class="thermal-sub">peak</span>
+              </p>
+              <p class="thermal-cover">
+                {(t.surveyed_share * 100).toFixed(0)}% of this route is surveyed. Proxy, not SOLWEIG.
+              </p>
+            {/if}
           </div>
-        </div>
+        {/if}
 
         <!-- Type pills -->
         {#if card.destTypes.length > 0}
@@ -184,23 +203,16 @@
     border-bottom: 2px solid var(--ink);
   }
 
-  .card-eyebrow {
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    margin-bottom: 4px;
-  }
-
+  /* Set as a name, not as a specimen. The small-caps treatment turned every
+     place in New York into the same typographic object and mangled the ones
+     with numerals in them. */
   .card-name {
-    font-size: 18px;
+    font-size: 1.15rem;
     font-weight: 800;
-    font-variant: small-caps;
-    letter-spacing: 0.02em;
-    color: var(--ink);
+    letter-spacing: -0.01em;
+    color: var(--bone);
     line-height: 1.2;
+    text-wrap: balance;
   }
 
   .card-address {
@@ -210,53 +222,6 @@
   }
 
   /* Stats grid */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .stat {
-    padding: 12px 16px;
-    border-right: 1px solid var(--border);
-  }
-
-  .stat:last-child {
-    border-right: none;
-  }
-
-  .stat-label {
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    margin-bottom: 2px;
-  }
-
-  .stat-val {
-    font-size: 28px;
-    font-weight: 800;
-    color: var(--ink);
-    line-height: 1;
-    letter-spacing: -0.02em;
-  }
-
-  .stat-val--sm {
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0;
-    line-height: 1.4;
-    margin-top: 4px;
-    text-transform: capitalize;
-  }
-
-  .stat-unit {
-    font-size: 10px;
-    color: var(--muted);
-    margin-top: 1px;
-  }
 
   /* Pills */
   .pills {
@@ -479,5 +444,73 @@
 
   @media (prefers-reduced-motion: reduce) {
     .thinking-dot { animation: none; opacity: 0.7; }
+  }
+
+  /* One line of facts. */
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 16px;
+    padding: 12px 14px;
+    border-bottom: var(--rule-hair) solid var(--subtle);
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .fact-n {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--bone);
+    margin-right: 2px;
+  }
+  .fact-mode,
+  .fact-profile {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bone-2);
+  }
+
+  /* The reading no other router produces. */
+  .thermal {
+    padding: 12px 14px 13px;
+    border-bottom: var(--rule-hair) solid var(--subtle);
+  }
+  .thermal-label {
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .thermal-read {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    margin-top: 6px;
+  }
+  .thermal-n {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--reach);
+  }
+  .thermal-n--peak { color: var(--hivis); }
+  .thermal-n .deg { font-size: 0.6em; font-weight: 700; margin-left: 1px; }
+  .thermal-sub {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-right: 4px;
+  }
+  .thermal-cover,
+  .thermal-none {
+    margin-top: 6px;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    color: var(--muted);
   }
 </style>

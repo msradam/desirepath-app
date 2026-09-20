@@ -20,6 +20,14 @@ export type RouteCard =
       distM: number;
       profile: string;
       hasTransit: boolean;
+      /**
+       * Radiant temperature along this route, weighted by length.
+       *
+       * Null mean means no edge on the route was surveyed, which is the
+       * ordinary case outside the five built neighbourhoods and is shown as
+       * "not surveyed" rather than as a temperature of zero.
+       */
+      thermal?: { mean_mrt_c: number | null; max_mrt_c: number | null; surveyed_share: number };
     }
   | {
       kind: 'reachable';

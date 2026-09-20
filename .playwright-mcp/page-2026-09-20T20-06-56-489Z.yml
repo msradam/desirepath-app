@@ -1,0 +1,54 @@
+- generic [ref=f82e2]:
+  - link "Skip to main content" [ref=f82e3] [cursor=pointer]:
+    - /url: "#content"
+  - main [ref=f82e4]:
+    - generic [ref=f82e5]:
+      - generic "Query record" [ref=f82e6]:
+        - generic [ref=f82e7]:
+          - link "DesirePath" [ref=f82e8] [cursor=pointer]:
+            - /url: /
+          - link "Quarter-mile coverage →" [ref=f82e9] [cursor=pointer]:
+            - /url: /coverage
+        - status "Application loading" [ref=f82e10]:
+          - generic [ref=f82e30]:
+            - generic [ref=f82e31]: Building your route map
+            - generic [ref=f82e32]: Loading the five-borough walking graph
+            - generic [ref=f82e33]: One-time download. Everything runs in your browser after this. No servers, no tracking.
+          - generic [ref=f82e34]:
+            - progressbar "Loading progress" [ref=f82e35]
+            - generic [ref=f82e37]:
+              - generic [ref=f82e38]: 3.0 / 30 MB
+              - generic [ref=f82e39]: bx ✓
+          - list "Loading steps" [ref=f82e40]:
+            - listitem [ref=f82e41]:
+              - generic [ref=f82e43]: Routing graph
+              - generic [ref=f82e44]: …
+            - listitem [ref=f82e45]:
+              - generic [ref=f82e47]: Transit data
+              - generic [ref=f82e48]: "-"
+            - listitem [ref=f82e49]:
+              - generic [ref=f82e51]: Language model
+              - generic [ref=f82e52]: "-"
+          - generic [ref=f82e53]:
+            - text: "Did you know · DesirePath routes on the OpenSidewalks graph: curb cuts, crossings and elevators from"
+            - strong [ref=f82e54]: OpenSidewalks
+            - text: alongside official NYC accessibility surveys.
+      - generic [ref=f82e56]:
+        - generic [ref=f82e57]:
+          - application "Route map. Use the route summary below for accessible route details." [ref=f82e58]
+          - generic "Map controls" [ref=f82e59]:
+            - generic [ref=f82e60]:
+              - button "Zoom in" [ref=f82e61] [cursor=pointer]: +
+              - button "Zoom out" [ref=f82e62] [cursor=pointer]: −
+              - button "Center on New York City" [ref=f82e63] [cursor=pointer]: ⌖
+        - generic [ref=f82e65]:
+          - textbox "Search accessible routes in New York City" [disabled] [ref=f82e70]:
+            - /placeholder: Search accessible routes…
+          - generic [aria-hidden] [ref=f82e71]: ⌘K
+        - generic:
+          - paragraph: Heat modelled at
+          - paragraph: 34.3°C air · clear sky
+          - paragraph: NWS heat advisory threshold, 21 Jul 15:00
+        - generic [aria-hidden]:
+          - generic: Cooling element
+          - generic: Step-free station

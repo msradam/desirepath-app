@@ -69,6 +69,12 @@
     padding: 0;
     text-align: left;
     line-height: 1.4;
+    /* Clears the 24px target minimum. These are the only way into the app for
+       somebody who does not know what to type, so they should not be the
+       hardest thing on the screen to hit. */
+    display: block;
+    min-height: 26px;
+    padding: 3px 0;
   }
 
   .example-link:hover {
