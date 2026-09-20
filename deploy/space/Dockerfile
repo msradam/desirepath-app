@@ -21,12 +21,8 @@ RUN apt-get update \
 # that downloads 2.1 GB at startup looks broken for the first few minutes and
 # does it again on every restart.
 ENV OLLAMA_MODELS=/opt/ollama/models
-RUN mkdir -p /opt/ollama/models \
- && (ollama serve &) \
- && until curl -sf http://127.0.0.1:11434/api/tags >/dev/null; do sleep 1; done \
- && ollama pull granite4:micro \
- && pkill -f "ollama serve" \
- && sleep 2
+COPY pull-model.sh /tmp/pull-model.sh
+RUN chmod +x /tmp/pull-model.sh && /tmp/pull-model.sh && rm /tmp/pull-model.sh
 
 # Spaces run the container as uid 1000.
 RUN useradd -m -u 1000 user || true
