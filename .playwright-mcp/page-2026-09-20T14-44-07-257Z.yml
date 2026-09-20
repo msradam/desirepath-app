@@ -1,0 +1,55 @@
+- generic [ref=f31e2]:
+  - link "Skip to main content" [ref=f31e3] [cursor=pointer]:
+    - /url: "#content"
+  - generic [ref=f31e5]:
+    - banner "Session status" [ref=f31e6]:
+      - generic [ref=f31e7]:
+        - generic [ref=f31e8]: 10:44 · SUN · SEP 20 · New York City
+        - generic [ref=f31e9]: Network
+        - generic [ref=f31e12]: ● Local · 0 records
+    - main [ref=f31e13]:
+      - generic [ref=f31e14]:
+        - generic "Query record" [ref=f31e15]:
+          - status [ref=f31e16]:
+            - generic [ref=f31e17]: 1488 stops · 426 ADA
+            - generic [ref=f31e18]: 81 elevators out
+          - status "Application loading" [ref=f31e19]:
+            - generic [ref=f31e39]:
+              - generic [ref=f31e40]: Building your route map
+              - generic [ref=f31e41]: Loading the five-borough walking graph
+              - generic [ref=f31e42]: One-time download. Everything runs in your browser after this. No servers, no tracking.
+            - generic [ref=f31e43]:
+              - progressbar "Loading progress" [ref=f31e44]
+              - generic [ref=f31e46]:
+                - generic [ref=f31e47]: 28.5 / 30 MB
+                - generic [ref=f31e48]: si ✓
+            - list "Loading steps" [ref=f31e49]:
+              - listitem [ref=f31e50]:
+                - generic [ref=f31e52]: Routing graph
+                - generic [ref=f31e53]: ✓
+              - listitem [ref=f31e54]:
+                - generic [ref=f31e56]: Transit data
+                - generic [ref=f31e57]: ✓
+              - listitem [ref=f31e58]:
+                - generic [ref=f31e60]: Language model
+                - generic [ref=f31e61]: …
+            - generic [ref=f31e62]:
+              - text: Did you know · Ariadne uses crowdsourced curb-cut and elevator data from
+              - strong [ref=f31e63]: OpenSidewalks
+              - text: alongside official NYC accessibility surveys.
+        - generic [ref=f31e65]:
+          - generic [ref=f31e66]:
+            - application "Route map. Use the route summary below for accessible route details." [ref=f31e67]:
+              - region "Map" [ref=f31e68]
+            - generic "Map controls" [ref=f31e69]:
+              - generic [ref=f31e70]:
+                - button "Zoom in" [ref=f31e71] [cursor=pointer]: +
+                - button "Zoom out" [ref=f31e72] [cursor=pointer]: −
+                - button "Center on New York City" [ref=f31e73] [cursor=pointer]: ⌖
+          - generic [ref=f31e75]:
+            - textbox "Search accessible routes in New York City" [disabled] [ref=f31e80]:
+              - /placeholder: Search accessible routes…
+            - generic [aria-hidden] [ref=f31e81]: ⌘K
+          - generic [aria-hidden]:
+            - generic: SURVEYED
+            - generic: SEP 20, 2026 · 10:43 EDT

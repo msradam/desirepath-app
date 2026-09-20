@@ -100,9 +100,66 @@ ws ::= [ \\t\\n]*
 """
 
 
+def build_schema(conditions: list[str]) -> dict:
+    """JSON Schema for the profile object.
+
+    XGrammar compiles this into a grammar and masks the decoder with it, so the
+    guarantee is the same as a hand-written EBNF: a condition term outside this
+    enum is unreachable, not merely discouraged.
+
+    A schema rather than EBNF because the EBNF has to be right. An earlier
+    hand-written one parsed, loaded, and then had the matcher reject a sampled
+    token mid-generation, which is a failure mode that only shows up against a
+    real model. XGrammar generates the grammar from this instead, and the
+    enums, the required list and the additionalProperties ban are the parts
+    that actually carry the guarantee.
+    """
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "intent", "origin", "destination", "resource_types",
+            "conditions", "max_minutes", "for_someone_else",
+        ],
+        "properties": {
+            "intent": {"enum": INTENTS},
+            # Free text by necessity: the schema cannot know every street in
+            # New York. The geocoder validates it and the confirmation card
+            # shows what it resolved to before anything routes.
+            "origin": {"type": "string"},
+            "destination": {"type": ["string", "null"]},
+            "resource_types": {
+                "type": "array",
+                "items": {"enum": RESOURCE_TYPES},
+            },
+            "conditions": {
+                "type": "array",
+                "items": {"enum": conditions},
+            },
+            "max_minutes": {"type": ["integer", "null"], "minimum": 1},
+            "for_someone_else": {"type": "boolean"},
+        },
+    }
+
+
 def build_ts(conditions: list[str], labels: dict[str, str], ebnf: str) -> str:
+    schema = build_schema(conditions)
     return f"""{HEADER}
-/** The EBNF the decoder is masked against. Compiled by XGrammar at load. */
+/**
+ * The schema the decoder is masked against. XGrammar compiles it to a grammar
+ * and applies it at the logit level, so a term outside these enums is
+ * unreachable rather than merely discouraged.
+ */
+export const PROFILE_SCHEMA = {json.dumps(schema, indent=2)};
+
+/** Serialised for web-llm's `response_format.schema`, which takes a string. */
+export const PROFILE_SCHEMA_JSON = {json.dumps(json.dumps(schema))};
+
+/**
+ * The equivalent EBNF, kept for documentation and for the unit tests that
+ * assert the vocabulary is exactly the condition map's. Not what ships to the
+ * decoder; see PROFILE_SCHEMA.
+ */
 export const PROFILE_GRAMMAR = {json.dumps(ebnf)};
 
 /** Condition vocabulary, in the order config/condition-map.yaml declares it. */

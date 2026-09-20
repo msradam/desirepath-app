@@ -95,9 +95,7 @@ fn diagnose_sample_edges_from_binary() {
     let Some(g) = load() else { return };
 
     // Sample the first 10 edges in the graph and inspect their attrs
-    let mut count = 0;
-    for eidx in g.graph.edge_indices() {
-        if count >= 10 { break; }
+    for (count, eidx) in g.graph.edge_indices().enumerate().take(10) {
         let e = &g.graph[eidx];
         let (u, v) = g.graph.edge_endpoints(eidx).unwrap();
         println!("Edge {}: u={} v={} length={:?} incline={:?} footway={:?}",
@@ -107,7 +105,6 @@ fn diagnose_sample_edges_from_binary() {
             e.attrs.get("incline").and_then(|v| v.as_f64()),
             e.attrs.get("footway").and_then(|v| v.as_str()),
         );
-        count += 1;
     }
 }
 

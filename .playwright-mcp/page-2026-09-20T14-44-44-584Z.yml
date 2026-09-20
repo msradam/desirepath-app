@@ -1,0 +1,58 @@
+- generic [ref=f31e2]:
+  - link "Skip to main content" [ref=f31e3] [cursor=pointer]:
+    - /url: "#content"
+  - generic [ref=f31e5]:
+    - banner "Session status" [ref=f31e6]:
+      - generic [ref=f31e7]:
+        - generic [ref=f31e8]: 10:44 · SUN · SEP 20 · New York City
+        - generic [ref=f31e9]: Network
+        - generic [ref=f31e12]: ● Local · 0 records
+    - main [ref=f31e13]:
+      - generic [ref=f31e14]:
+        - generic "Query record" [ref=f31e15]:
+          - status [ref=f31e16]:
+            - generic [ref=f31e17]: 1488 stops · 426 ADA
+            - generic [ref=f31e18]: 81 elevators out
+          - generic "Query log" [ref=f31e83]:
+            - generic [aria-hidden] [ref=f31e84]:
+              - generic [ref=f31e85]: QUERY LOG · SESSION 10:44
+              - generic [ref=f31e86]: 0 RECORDS
+            - list "Query history" [ref=f31e87]:
+              - listitem [ref=f31e88]: No queries yet
+          - generic [ref=f31e90]:
+            - paragraph [ref=f31e91]: Ariadne is a working reference for accessible movement through New York. Type a query above to consult the record.
+            - generic [ref=f31e92]:
+              - generic [ref=f31e93]: Example queries ¶
+              - list [ref=f31e94]:
+                - listitem [ref=f31e95]:
+                  - text: →
+                  - button "it's 95 degrees out, I'm near Penn Station with a power wheelchair. Find me a cooling center" [ref=f31e96] [cursor=pointer]
+                - listitem [ref=f31e97]:
+                  - text: →
+                  - button "step-free route from Grand Central to Atlantic Terminal, manual wheelchair" [ref=f31e98] [cursor=pointer]
+                - listitem [ref=f31e99]:
+                  - text: →
+                  - button "nearest cooling center to 161 Amsterdam Avenue, wheelchair" [ref=f31e100] [cursor=pointer]
+                - listitem [ref=f31e101]:
+                  - text: →
+                  - button "cooling centers within 15 min of Yankee Stadium, I walk slowly" [ref=f31e102] [cursor=pointer]
+                - listitem [ref=f31e103]:
+                  - text: →
+                  - button "what libraries or shelters can I reach from 2881 Third Avenue Mott Haven in 20 minutes, wheelchair" [ref=f31e104] [cursor=pointer]
+        - generic [ref=f31e65]:
+          - generic [ref=f31e66]:
+            - application "Route map. Use the route summary below for accessible route details." [ref=f31e67]:
+              - region "Map" [ref=f31e68]
+            - generic "Map controls" [ref=f31e69]:
+              - generic [ref=f31e70]:
+                - button "Zoom in" [ref=f31e71] [cursor=pointer]: +
+                - button "Zoom out" [ref=f31e72] [cursor=pointer]: −
+                - button "Center on New York City" [ref=f31e73] [cursor=pointer]: ⌖
+          - generic [ref=f31e75]:
+            - textbox "Search accessible routes in New York City" [ref=f31e80]:
+              - /placeholder: Search accessible routes…
+            - generic [aria-hidden] [ref=f31e81]: ⌘K
+          - generic [aria-hidden]:
+            - generic: SURVEYED
+            - generic: SEP 20, 2026 · 10:44 EDT
+          - button "Isochrone" [ref=f31e106] [cursor=pointer]

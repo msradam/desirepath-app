@@ -10,6 +10,9 @@ import type { RouteStep } from '../directions';
 import { buildWalkSteps, buildMultimodalSteps } from '../directions';
 import { langDirective } from '../lang';
 import { NO_ORIGIN_ERROR } from './router-service';
+import type { TravelProfile } from '../domain/profile-grammar';
+import type { ResolvedEffects } from './extraction';
+import type { ThermalArgs } from '../domain/thermal';
 
 const NO_ORIGIN_NARRATION =
   "I need a starting point. Please name one. E.g., a station, a neighborhood, " +
@@ -216,6 +219,58 @@ export class NarrationService {
     private routerService: RouterService,
   ) {}
 
+  /**
+   * Route from a profile the user has confirmed on the card.
+   *
+   * This is the path the app actually takes. The model ran once, in stage 1,
+   * to fill in the form; the user accepted or corrected it; and from here on
+   * nothing consults the model until stage 3 narrates what stage 2 decided.
+   * Editing a condition and accepting again re-enters here with the new
+   * values, which is what makes the card's edits change the route.
+   */
+  async runConfirmedProfile(
+    profile: TravelProfile,
+    effects: ResolvedEffects,
+    q: string,
+    cb: NarrationCallbacks,
+  ): Promise<void> {
+    const t_start = performance.now();
+    const thermal: ThermalArgs = {
+      heat_aware: effects.heat_aware,
+      sun_inflation: effects.sun_inflation,
+    };
+    const shared = {
+      profile: effects.router_profile,
+      night: false,
+      thermal,
+    };
+
+    let name: string;
+    let args: Record<string, unknown>;
+    switch (profile.intent) {
+      case 'plan_route':
+        name = 'plan_route';
+        args = { ...shared, from: profile.origin, to: profile.destination ?? '' };
+        break;
+      case 'find_reachable':
+        name = 'find_reachable_resources';
+        args = {
+          ...shared,
+          near: profile.origin,
+          resource_types: profile.resource_types,
+          // Only send a budget when the user actually gave one. The router's
+          // own default is more generous than a number we invented would be.
+          ...(profile.max_minutes === null ? {} : { max_minutes: profile.max_minutes }),
+        };
+        break;
+      default:
+        name = 'find_comfort_and_route';
+        args = { ...shared, near: profile.origin, resource_types: profile.resource_types };
+    }
+
+    return this.dispatch(name, args, q, cb, { t_start });
+  }
+
   async query(q: string, weather: WeatherContext | null, cb: NarrationCallbacks): Promise<void> {
     const t_start = performance.now();
     const sys = buildSystemPrompt(weather);
@@ -265,6 +320,31 @@ export class NarrationService {
     const t_llm_tool_end = performance.now();
     const name = call.name || 'plan_route';
     const args = (call.arguments || {}) as Record<string, unknown>;
+    return this.dispatch(name, args, q, cb, {
+      t_start, raw_model_output: modelOut,
+      llm_tool_turn: Math.round(t_llm_tool_end - t_llm_tool_start),
+    });
+  }
+
+  /**
+   * Stage 2 and stage 3, given a tool name and arguments.
+   *
+   * Split out of query() so that a profile the user has confirmed on the card
+   * can reach the same dispatch without going back through the model. The
+   * extraction turn is stage 1's job and happens once; re-running it after an
+   * edit would let the model overwrite the correction the user just made.
+   */
+  async dispatch(
+    name: string,
+    args: Record<string, unknown>,
+    q: string,
+    cb: NarrationCallbacks,
+    meta: { t_start: number; raw_model_output?: string; llm_tool_turn?: number },
+  ): Promise<void> {
+    const t_start = meta.t_start;
+    const modelOut = meta.raw_model_output ?? '';
+    const t_llm_tool_start = t_start;
+    const t_llm_tool_end = t_start + (meta.llm_tool_turn ?? 0);
     const setToolResult = cb.addTool(name, args);
     const t_dispatch_start = performance.now();
 

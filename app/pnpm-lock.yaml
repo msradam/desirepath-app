@@ -15,8 +15,8 @@ importers:
         specifier: ^3.0.0
         version: 3.8.1
       '@mlc-ai/web-llm':
-        specifier: ^0.2.82
-        version: 0.2.85
+        specifier: 0.2.82
+        version: 0.2.82
       fuse.js:
         specifier: ^7.3.0
         version: 7.5.0
@@ -636,8 +636,8 @@ packages:
   '@maplibre/vt-pbf@4.3.2':
     resolution: {integrity: sha512-j6p0AdjvAR19Z3XaCysle7A4ZSo08tYOzxD0Y9NQylwPAkwJJeYub5b2eVucdeDh7erhv69DahoLOevDRERRUw==}
 
-  '@mlc-ai/web-llm@0.2.85':
-    resolution: {integrity: sha512-CwUiSAvDCYnmAZlpPMkurPHDfBLq6fvdRB3vRgoA894hRG/V/BSeY9bmMm6iIIU5VpjJxfb/dLPpJX2at0L9rw==}
+  '@mlc-ai/web-llm@0.2.82':
+    resolution: {integrity: sha512-ONhW+28PPVSUI1m0RkJcm7suwc47b65i5b/rTEIADq5I22p1+9uf/CBbDPRkkjj1WJB9s8oFp0ywAW0NY1G6fg==}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -2331,7 +2331,7 @@ snapshots:
       '@types/geojson': 7946.0.16
       pbf: 5.1.2
 
-  '@mlc-ai/web-llm@0.2.85':
+  '@mlc-ai/web-llm@0.2.82':
     dependencies:
       loglevel: 1.9.2
 

@@ -177,6 +177,14 @@ pub fn shortest_path_tree(
 
 // ---------- internal Dijkstra ----------
 
+/// What a Dijkstra run returns: the cost to reach each settled node, and the
+/// predecessor and edge that got there. Named because both entry points return
+/// it and the tuple is otherwise unreadable at the call site.
+type DijkstraResult = (
+    HashMap<NodeIndex, f64>,
+    HashMap<NodeIndex, (NodeIndex, Option<EdgeIndex>)>,
+);
+
 /// Priority queue entry: (negative_cost, node_index). BinaryHeap is max-heap.
 #[derive(PartialEq, Eq)]
 struct HeapEntry(NotNan<f64>, NodeIndex);
@@ -202,10 +210,7 @@ fn dijkstra(
     target: Option<NodeIndex>,
     rules: &CostRules,
     args: &RuntimeArgs,
-) -> (
-    HashMap<NodeIndex, f64>,
-    HashMap<NodeIndex, (NodeIndex, Option<EdgeIndex>)>,
-) {
+) -> DijkstraResult {
     let mut dist: HashMap<NodeIndex, f64> = HashMap::new();
     let mut prev: HashMap<NodeIndex, (NodeIndex, Option<EdgeIndex>)> = HashMap::new();
     let mut heap = BinaryHeap::new();
@@ -253,10 +258,7 @@ fn dijkstra_bounded(
     max_cost: f64,
     rules: &CostRules,
     args: &RuntimeArgs,
-) -> (
-    HashMap<NodeIndex, f64>,
-    HashMap<NodeIndex, (NodeIndex, Option<EdgeIndex>)>,
-) {
+) -> DijkstraResult {
     let mut dist: HashMap<NodeIndex, f64> = HashMap::new();
     let mut prev: HashMap<NodeIndex, (NodeIndex, Option<EdgeIndex>)> = HashMap::new();
     let mut heap = BinaryHeap::new();

@@ -16,6 +16,10 @@
   import { privacyLog } from '$lib/services/privacy-log';
   import { RouterService } from '$lib/services/router-service';
   import { NarrationService } from '$lib/services/narration-service';
+  import type { NarrationCallbacks } from '$lib/services/narration-service';
+  import { ExtractionService, resolveEffects } from '$lib/services/extraction';
+  import { CONDITION_DEFAULTS, CONDITION_EFFECTS } from '$lib/domain/condition-effects';
+  import type { TravelProfile } from '$lib/domain/profile-grammar';
 
   // Stores
   import { weather, transitState, loadPhase, loadMessage, loadProgress, graphStats } from '$lib/stores/feeds';
@@ -29,6 +33,7 @@
   import FeedStatus from '$lib/components/FeedStatus.svelte';
   import QueryLog from '$lib/components/QueryLog.svelte';
   import ActiveRecord from '$lib/components/ActiveRecord.svelte';
+  import ProfileCard from '$lib/components/ProfileCard.svelte';
   import RouteMap from '$lib/components/RouteMap.svelte';
   import SearchBar from '$lib/components/SearchBar.svelte';
 
@@ -49,6 +54,12 @@
   let comfortFeatures = $state<ComfortFeature[]>([]);
   let routerService = $state<RouterService | null>(null);
   let narrationService = $state<NarrationService | null>(null);
+  let extractionService = $state<ExtractionService | null>(null);
+
+  // Stage 1's output, waiting for the user. Nothing routes while this is set:
+  // the whole reason the card exists is that a constraint the model dropped
+  // must be visible before it can affect a route, not after.
+  let pending = $state<{ profile: TravelProfile; query: string; constrained: boolean } | null>(null);
   let booted = $state(false);
   let gpuError = $state('');
 
@@ -61,9 +72,127 @@
     tts.speak(text);
   }
 
+  /**
+   * The callbacks both routing paths share.
+   *
+   * Extracted so the confirmed-profile path and the legacy single-shot
+   * path render identically. A route that reached the map through the
+   * card must not look different from one that did not.
+   */
+  function callbacks(entryId: string): NarrationCallbacks {
+    return {
+          addBot(initial) {
+            queryLog.updateRecord(entryId, { streaming: true, botText: initial });
+            return (text: string) => queryLog.updateRecord(entryId, { botText: text });
+          },
+          finishBot(text) {
+            queryLog.updateRecord(entryId, { botText: text, streaming: false });
+            speak(text);
+          },
+          addSteps(steps) {
+            queryLog.updateRecord(entryId, { steps });
+          },
+          addTool(name, _args) {
+            return (result: unknown) => {
+              const r = result as Record<string, unknown> | undefined;
+              let summary: string;
+              if (!r?.ok) {
+                summary = `${name} → error`;
+              } else if (typeof r.total_minutes === 'number') {
+                summary = `routed via osm_walk_graph · ${r.total_minutes} min · no network`;
+              } else if (typeof r.count === 'number') {
+                const within = r.budget_explicit ? ` within ${r.max_minutes} min` : '';
+                summary = `routed via osm_walk_graph · ${r.count} place${r.count === 1 ? '' : 's'}${within} · no network`;
+              } else {
+                summary = `routed via osm_walk_graph · no network`;
+              }
+              queryLog.updateRecord(entryId, { toolSummary: summary });
+            };
+          },
+          addSys(text) {
+            queryLog.updateRecord(entryId, { botText: text });
+            speak(text);
+          },
+          drawRoute(result) {
+            activeProfile.set(result.profile as RouterProfileId);
+            const totalMin = result.total_seconds
+              ? Math.round(result.total_seconds / 60)
+              : Math.round((result.length_m ?? 0) / 75);
+            queryLog.updateRecord(entryId, {
+              card: {
+                kind: 'route',
+                destName: result.destination_name,
+                destAddress: result.destination_address ?? '',
+                destTypes: result.destination_types ?? [],
+                totalMin,
+                distM: Math.round(result.length_m ?? 0),
+                profile: result.profile,
+                hasTransit: !!(result.multimodal_legs?.some((l: any) => l.kind === 'transit')),
+              }
+            });
+            routeMap?.drawRoute(result);
+            // Persist a pulsing dot at the user's location once geolocation has been used.
+            const coords = geolocation.cached();
+            if (coords && result.origin_name === 'Your location') {
+              routeMap?.showUserLocation(coords.lat, coords.lng);
+            }
+          },
+          drawReachable(result, meta) {
+            activeProfile.set(result.profile as RouterProfileId);
+            const top = result.pois[0];
+            if (top) {
+              queryLog.updateRecord(entryId, {
+                card: {
+                  kind: 'reachable',
+                  destName: top.name,
+                  destAddress: top.address ?? '',
+                  destTypes: top.resource_types ?? [],
+                  totalMin: top.walk_min,
+                  profile: result.profile,
+                  origin: result.origin_name,
+                  count: result.pois.length,
+                  maxMinutes: result.max_minutes,
+                  budgetExplicit: meta.budgetExplicit,
+                  alsoNearby: result.pois.slice(1, 4).map((p) => ({
+                    name: p.name,
+                    address: p.address ?? '',
+                    walkMin: p.walk_min,
+                    types: p.resource_types ?? [],
+                  })),
+                }
+              });
+            }
+            routeMap?.drawReachable(result, { budgetExplicit: meta.budgetExplicit });
+            const coords = geolocation.cached();
+            if (coords && result.origin_name === 'Your location') {
+              routeMap?.showUserLocation(coords.lat, coords.lng);
+            }
+          },
+    };
+  }
+
   // ── Send handler ──────────────────────────────────────────────────────────
+  //
+  // Stage 1 only. It extracts a profile and stops. Stage 2 runs from
+  // acceptProfile(), after the user has seen the form and agreed with it.
   async function handleSend(query: string) {
     if (get(queryBusy) || !routerService) return;
+    if (extractionService && narrationService) {
+      queryBusy.set(true);
+      try {
+        const result = await extractionService.extract(query);
+        pending = { profile: result.profile, query, constrained: result.constrained };
+      } catch (e) {
+        const entryId = queryLog.addEntry(query);
+        queryLog.updateRecord(entryId, {
+          botText: `I could not read that into a form: ${(e as Error).message}`,
+        });
+        queryLog.finishEntry(entryId);
+      } finally {
+        queryBusy.set(false);
+      }
+      return;
+    }
     if (!narrationService) {
       const entryId = queryLog.addEntry(query);
       const detail = gpuError ? `Error: ${gpuError}` : 'Language model not available. Try Chrome or Edge with WebGPU enabled.';
@@ -77,93 +206,7 @@
 
     try {
       await narrationService.query(query, wx, {
-        addBot(initial) {
-          queryLog.updateRecord(entryId, { streaming: true, botText: initial });
-          return (text: string) => queryLog.updateRecord(entryId, { botText: text });
-        },
-        finishBot(text) {
-          queryLog.updateRecord(entryId, { botText: text, streaming: false });
-          speak(text);
-        },
-        addSteps(steps) {
-          queryLog.updateRecord(entryId, { steps });
-        },
-        addTool(name, _args) {
-          return (result: unknown) => {
-            const r = result as Record<string, unknown> | undefined;
-            let summary: string;
-            if (!r?.ok) {
-              summary = `${name} → error`;
-            } else if (typeof r.total_minutes === 'number') {
-              summary = `routed via osm_walk_graph · ${r.total_minutes} min · no network`;
-            } else if (typeof r.count === 'number') {
-              const within = r.budget_explicit ? ` within ${r.max_minutes} min` : '';
-              summary = `routed via osm_walk_graph · ${r.count} place${r.count === 1 ? '' : 's'}${within} · no network`;
-            } else {
-              summary = `routed via osm_walk_graph · no network`;
-            }
-            queryLog.updateRecord(entryId, { toolSummary: summary });
-          };
-        },
-        addSys(text) {
-          queryLog.updateRecord(entryId, { botText: text });
-          speak(text);
-        },
-        drawRoute(result) {
-          activeProfile.set(result.profile as RouterProfileId);
-          const totalMin = result.total_seconds
-            ? Math.round(result.total_seconds / 60)
-            : Math.round((result.length_m ?? 0) / 75);
-          queryLog.updateRecord(entryId, {
-            card: {
-              kind: 'route',
-              destName: result.destination_name,
-              destAddress: result.destination_address ?? '',
-              destTypes: result.destination_types ?? [],
-              totalMin,
-              distM: Math.round(result.length_m ?? 0),
-              profile: result.profile,
-              hasTransit: !!(result.multimodal_legs?.some((l: any) => l.kind === 'transit')),
-            }
-          });
-          routeMap?.drawRoute(result);
-          // Persist a pulsing dot at the user's location once geolocation has been used.
-          const coords = geolocation.cached();
-          if (coords && result.origin_name === 'Your location') {
-            routeMap?.showUserLocation(coords.lat, coords.lng);
-          }
-        },
-        drawReachable(result, meta) {
-          activeProfile.set(result.profile as RouterProfileId);
-          const top = result.pois[0];
-          if (top) {
-            queryLog.updateRecord(entryId, {
-              card: {
-                kind: 'reachable',
-                destName: top.name,
-                destAddress: top.address ?? '',
-                destTypes: top.resource_types ?? [],
-                totalMin: top.walk_min,
-                profile: result.profile,
-                origin: result.origin_name,
-                count: result.pois.length,
-                maxMinutes: result.max_minutes,
-                budgetExplicit: meta.budgetExplicit,
-                alsoNearby: result.pois.slice(1, 4).map((p) => ({
-                  name: p.name,
-                  address: p.address ?? '',
-                  walkMin: p.walk_min,
-                  types: p.resource_types ?? [],
-                })),
-              }
-            });
-          }
-          routeMap?.drawReachable(result, { budgetExplicit: meta.budgetExplicit });
-          const coords = geolocation.cached();
-          if (coords && result.origin_name === 'Your location') {
-            routeMap?.showUserLocation(coords.lat, coords.lng);
-          }
-        },
+        ...callbacks(entryId),
       });
     } catch (e) {
       queryLog.updateRecord(entryId, { botText: `Error: ${(e as Error).message}` });
@@ -288,6 +331,13 @@
     }
 
     narrationService = new NarrationService(llm, routerService!);
+    extractionService = new ExtractionService(llm);
+
+    // Test harness for tests/e2e/extraction.spec.ts. Stage 1 in isolation,
+    // so the extraction score is not polluted by geocoder misses that have
+    // nothing to do with reading a sentence into a form.
+    (window as unknown as { __ariadneExtract?: unknown }).__ariadneExtract = (q: string) =>
+      extractionService!.extract(q);
     loadPhase.set('model_ready');
     loadProgress.set(100);
     loadMessage.set('Ready');
@@ -327,6 +377,29 @@
     return null;
   });
 
+  /** The user accepted or corrected the form. Now, and only now, route. */
+  async function acceptProfile(profile: TravelProfile) {
+    const ctx = pending;
+    pending = null;
+    if (!ctx || !narrationService || get(queryBusy)) return;
+
+    const effects = resolveEffects(profile.conditions, CONDITION_EFFECTS, CONDITION_DEFAULTS);
+    queryBusy.set(true);
+    const entryId = queryLog.addEntry(ctx.query);
+    try {
+      await narrationService.runConfirmedProfile(profile, effects, ctx.query, callbacks(entryId));
+    } catch (e) {
+      queryLog.updateRecord(entryId, { botText: `Sorry. ${(e as Error).message}` });
+    } finally {
+      queryLog.finishEntry(entryId);
+      queryBusy.set(false);
+    }
+  }
+
+  function cancelProfile() {
+    pending = null;
+  }
+
   // Derive the active/last entry for ActiveRecord
   const activeEntry = $derived(
     $queryLog.find(e => e.status === 'active') ?? ($queryLog.length > 0 ? $queryLog[$queryLog.length - 1] : null)
@@ -363,6 +436,15 @@
         </div>
       {/if}
       <QueryLog />
+      {#if pending}
+        <ProfileCard
+          profile={pending.profile}
+          query={pending.query}
+          constrained={pending.constrained}
+          onaccept={acceptProfile}
+          oncancel={cancelProfile}
+        />
+      {/if}
       <ActiveRecord entry={activeEntry} />
     {/if}
   </div>

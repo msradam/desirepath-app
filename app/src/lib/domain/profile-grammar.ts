@@ -9,7 +9,103 @@
 // Regenerate after editing the condition map. app/tests/unit/extraction.test.ts
 // asserts the two stay in step.
 
-/** The EBNF the decoder is masked against. Compiled by XGrammar at load. */
+/**
+ * The schema the decoder is masked against. XGrammar compiles it to a grammar
+ * and applies it at the logit level, so a term outside these enums is
+ * unreachable rather than merely discouraged.
+ */
+export const PROFILE_SCHEMA = {
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "intent",
+    "origin",
+    "destination",
+    "resource_types",
+    "conditions",
+    "max_minutes",
+    "for_someone_else"
+  ],
+  "properties": {
+    "intent": {
+      "enum": [
+        "plan_route",
+        "find_comfort",
+        "find_reachable"
+      ]
+    },
+    "origin": {
+      "type": "string"
+    },
+    "destination": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_types": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "cool_indoor",
+          "warm_indoor",
+          "bathroom",
+          "quiet_indoor",
+          "wifi_power",
+          "shelter_24h",
+          "pool_indoor",
+          "seating",
+          "linknyc",
+          "food_pantry",
+          "senior_center",
+          "harm_reduction",
+          "medical",
+          "mental_health",
+          "community_center"
+        ]
+      }
+    },
+    "conditions": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "heat_sensitivity_moderate",
+          "heat_sensitivity_high",
+          "impaired_sweating",
+          "cardiovascular_strain",
+          "respiratory_limitation",
+          "uv_sensitivity_high",
+          "medication_heat_risk",
+          "older_adult",
+          "young_child",
+          "pregnancy",
+          "mobility_wheelchair",
+          "mobility_slow",
+          "low_vision"
+        ]
+      }
+    },
+    "max_minutes": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "for_someone_else": {
+      "type": "boolean"
+    }
+  }
+};
+
+/** Serialised for web-llm's `response_format.schema`, which takes a string. */
+export const PROFILE_SCHEMA_JSON = "{\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"intent\", \"origin\", \"destination\", \"resource_types\", \"conditions\", \"max_minutes\", \"for_someone_else\"], \"properties\": {\"intent\": {\"enum\": [\"plan_route\", \"find_comfort\", \"find_reachable\"]}, \"origin\": {\"type\": \"string\"}, \"destination\": {\"type\": [\"string\", \"null\"]}, \"resource_types\": {\"type\": \"array\", \"items\": {\"enum\": [\"cool_indoor\", \"warm_indoor\", \"bathroom\", \"quiet_indoor\", \"wifi_power\", \"shelter_24h\", \"pool_indoor\", \"seating\", \"linknyc\", \"food_pantry\", \"senior_center\", \"harm_reduction\", \"medical\", \"mental_health\", \"community_center\"]}}, \"conditions\": {\"type\": \"array\", \"items\": {\"enum\": [\"heat_sensitivity_moderate\", \"heat_sensitivity_high\", \"impaired_sweating\", \"cardiovascular_strain\", \"respiratory_limitation\", \"uv_sensitivity_high\", \"medication_heat_risk\", \"older_adult\", \"young_child\", \"pregnancy\", \"mobility_wheelchair\", \"mobility_slow\", \"low_vision\"]}}, \"max_minutes\": {\"type\": [\"integer\", \"null\"], \"minimum\": 1}, \"for_someone_else\": {\"type\": \"boolean\"}}}";
+
+/**
+ * The equivalent EBNF, kept for documentation and for the unit tests that
+ * assert the vocabulary is exactly the condition map's. Not what ships to the
+ * decoder; see PROFILE_SCHEMA.
+ */
 export const PROFILE_GRAMMAR = "# Profile object. Generated; see pipeline/thermal/grammar.py\nroot ::= \"{\" ws\n  \"\\\"intent\\\"\" ws \":\" ws intent ws \",\" ws\n  \"\\\"origin\\\"\" ws \":\" ws string ws \",\" ws\n  \"\\\"destination\\\"\" ws \":\" ws nullable-string ws \",\" ws\n  \"\\\"resource_types\\\"\" ws \":\" ws resource-array ws \",\" ws\n  \"\\\"conditions\\\"\" ws \":\" ws condition-array ws \",\" ws\n  \"\\\"max_minutes\\\"\" ws \":\" ws nullable-int ws \",\" ws\n  \"\\\"for_someone_else\\\"\" ws \":\" ws boolean ws\n\"}\"\n\nintent ::= \"\\\"plan_route\\\"\" | \"\\\"find_comfort\\\"\" | \"\\\"find_reachable\\\"\"\n\nresource ::= \"\\\"cool_indoor\\\"\" | \"\\\"warm_indoor\\\"\" | \"\\\"bathroom\\\"\" | \"\\\"quiet_indoor\\\"\" | \"\\\"wifi_power\\\"\" | \"\\\"shelter_24h\\\"\" | \"\\\"pool_indoor\\\"\" | \"\\\"seating\\\"\" | \"\\\"linknyc\\\"\" | \"\\\"food_pantry\\\"\" | \"\\\"senior_center\\\"\" | \"\\\"harm_reduction\\\"\" | \"\\\"medical\\\"\" | \"\\\"mental_health\\\"\" | \"\\\"community_center\\\"\"\nresource-array ::= \"[\" ws \"]\" | \"[\" ws resource (ws \",\" ws resource)* ws \"]\"\n\ncondition ::= \"\\\"heat_sensitivity_moderate\\\"\" | \"\\\"heat_sensitivity_high\\\"\" | \"\\\"impaired_sweating\\\"\" | \"\\\"cardiovascular_strain\\\"\" | \"\\\"respiratory_limitation\\\"\" | \"\\\"uv_sensitivity_high\\\"\" | \"\\\"medication_heat_risk\\\"\" | \"\\\"older_adult\\\"\" | \"\\\"young_child\\\"\" | \"\\\"pregnancy\\\"\" | \"\\\"mobility_wheelchair\\\"\" | \"\\\"mobility_slow\\\"\" | \"\\\"low_vision\\\"\"\ncondition-array ::= \"[\" ws \"]\" | \"[\" ws condition (ws \",\" ws condition)* ws \"]\"\n\nnullable-string ::= \"null\" | string\nnullable-int ::= \"null\" | integer\nboolean ::= \"true\" | \"false\"\n\n# A place name the user typed. Free text by necessity, but still a well-formed\n# JSON string: the grammar cannot know every street in New York, so the\n# geocoder validates this field and the confirmation card shows what it\n# resolved to before anything routes.\nstring ::= \"\\\"\" char* \"\\\"\"\nchar ::= [^\"\\\\\\x00-\\x1F] | \"\\\\\" [\"\\\\/bfnrt]\n\ninteger ::= [1-9] [0-9]{0,2}\n\nws ::= [ \\t\\n]*\n";
 
 /** Condition vocabulary, in the order config/condition-map.yaml declares it. */

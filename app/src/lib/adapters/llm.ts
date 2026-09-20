@@ -15,6 +15,12 @@ export type CompletionOpts = {
    * dependency and no network call.
    */
   grammar?: string;
+  /**
+   * JSON Schema the decoder is masked against, compiled to a grammar by
+   * XGrammar. Preferred over hand-written EBNF: the guarantee is identical and
+   * there is no grammar of our own to get wrong.
+   */
+  schema?: string;
 };
 
 /**
@@ -121,12 +127,11 @@ export class WebLLMGraniteAdapter implements LLMAdapter {
     this.engine = await webllm.CreateMLCEngine(modelId, {
       appConfig: {
         ...prebuilt,
-        // web-llm replaced `useIndexedDBCache: true` with `cacheBackend`. The
-        // old field is not in AppConfig any more, so it was being accepted by
-        // the object literal and then ignored: the model was caching to
-        // whichever backend the library defaults to, not the one this app
-        // documents and the Playwright quota notes assume.
-        cacheBackend: 'indexeddb',
+        // Valid in web-llm 0.2.82, which is the version the Granite model
+        // library on HuggingFace was built against. 0.2.85 renames this to
+        // `cacheBackend`, and also changes the runtime ABI so that model lib
+        // fails to instantiate at all. See DEPENDENCIES.md.
+        useIndexedDBCache: true,
         model_list: [localModels[modelId], ...prebuilt.model_list],
       },
       initProgressCallback: (r: { text?: string; progress?: number }) =>
@@ -152,9 +157,12 @@ export class WebLLMGraniteAdapter implements LLMAdapter {
       ...(opts?.stop ? { stop: opts.stop } : {}),
     };
 
-    if (opts?.grammar) {
+    if (opts?.schema) {
       // Masked at the logit level. If the runtime does not understand this
       // field the request must fail rather than quietly decode unconstrained.
+      request.response_format = { type: 'json_object', schema: opts.schema };
+      this._lastConstrained = true;
+    } else if (opts?.grammar) {
       request.response_format = { type: 'grammar', grammar: opts.grammar };
       this._lastConstrained = true;
     } else {
@@ -165,9 +173,9 @@ export class WebLLMGraniteAdapter implements LLMAdapter {
     try {
       stream = await eng.chat.completions.create(request);
     } catch (e) {
-      if (opts?.grammar) {
+      if (opts?.grammar || opts?.schema) {
         throw new UnconstrainedDecodeError(
-          `WebLLM rejected the grammar request: ${(e as Error)?.message ?? e}`,
+          `WebLLM rejected the constrained request: ${(e as Error)?.message ?? e}`,
         );
       }
       throw e;

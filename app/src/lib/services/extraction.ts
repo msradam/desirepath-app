@@ -22,7 +22,7 @@ import type { ChatMessage } from '../domain/narration';
 import {
   CONDITION_LABELS,
   CONDITION_TERMS,
-  PROFILE_GRAMMAR,
+  PROFILE_SCHEMA_JSON,
   RESOURCE_TYPES,
   validateProfile,
 } from '../domain/profile-grammar';
@@ -102,7 +102,7 @@ export class ExtractionService {
       for await (const delta of this.llm.completion(messages, {
         max_tokens: 256,
         temperature: 0,
-        grammar: PROFILE_GRAMMAR,
+        schema: PROFILE_SCHEMA_JSON,
       })) {
         raw += delta;
       }

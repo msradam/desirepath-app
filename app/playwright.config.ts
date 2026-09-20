@@ -18,6 +18,18 @@ import { defineConfig, devices } from '@playwright/test';
  */
 const HEADLESS = process.env.ARIADNE_HEADLESS === '1';
 
+/**
+ * Where the tests point.
+ *
+ * The dev server cannot load the model: `optimizeDeps.exclude` on
+ * @mlc-ai/web-llm means Vite serves the package unbundled, and the TVM runtime
+ * import the model library needs is not wired up, so WebAssembly.instantiate
+ * fails with "function import requires a callable". The production build is
+ * fine. Set ARIADNE_BASE_URL to a `npm run preview` server for anything that
+ * needs the model; leave it unset for the surfaces that do not.
+ */
+const BASE_URL = process.env.ARIADNE_BASE_URL ?? 'http://localhost:5173';
+
 export default defineConfig({
   testDir: './tests/e2e',
   // Granite model load + each LLM round-trip eats real seconds.
@@ -28,7 +40,7 @@ export default defineConfig({
   reporter: [['list']],
 
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -57,10 +69,15 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: true,
-    timeout: 60_000,
-  },
+  // Only start a dev server when the tests are not pointed somewhere else.
+  ...(process.env.ARIADNE_BASE_URL
+    ? {}
+    : {
+        webServer: {
+          command: 'npm run dev',
+          url: 'http://localhost:5173',
+          reuseExistingServer: true,
+          timeout: 60_000,
+        },
+      }),
 });
