@@ -65,14 +65,10 @@ First tab. Type exactly:
 Rockaway Avenue to Betsy Head Park
 ```
 
-The confirmation card appears and **nothing has routed**. Say what the card is:
+The route draws, and above it a block says what the model read out of the sentence: the
+request it dispatched to, the conditions it picked up, and whether heat was priced.
 
-> A model filled in a form. It cannot route until I agree with the form. Every field the
-> schema can produce has a control here, so a constraint it dropped is visible before it
-> can affect a route.
-
-Point at "What you are asking for". It reads **Route between two places**, and underneath:
-*Chosen from what you filled in below, not by the model.* That sentence is worth stopping on:
+Point at **Request**. It reads **Route between two places**. That is worth stopping on:
 
 > This used to be a field the model predicted. It got it wrong in 65 percent of runs. The
 > cause was the schema, not the model: the decoder emits keys in the order the schema
@@ -82,24 +78,23 @@ Point at "What you are asking for". It reads **Route between two places**, and u
 > tool from the slots instead. The control is still here, because a derived answer can be
 > wrong about an ambiguous sentence.
 
-Read the consequence panel: *Heat: not priced. Sun and shade cost the same per metre.*
-
-Click **Accept**. Route draws. 25 min, 1.2 mi, `RUNTIME ● Local`.
+Read the **Heat** line: *not priced*. No condition was stated, so sun and shade cost the
+same per metre. 25 min, 1.2 mi, `RUNTIME ● Local`.
 
 ### 3. The condition changes the route (60 s)
 
-Same query again. On the card, tick **Reduced ability to sweat**.
+Now type a sentence that states one:
 
-The consequence panel changes live, before anything routes:
+```
+Rockaway Avenue to Betsy Head Park, I can't handle the heat
+```
 
-> Heat: **priced**. Sun inflation 0.84: a metre in full sun is costed as 1.84 metres.
-> Continuous exposure: capped at 7 minutes in one unbroken stretch of sun.
+The **Heat** line changes to *priced, sun inflation 0.63*, and the conditions line names
+what it read.
 
 Where that number comes from: it is beta minus one from Melnikov et al. (2022), estimated
 from 408 observed pedestrian path choices. The file that decides it is
 `config/condition-map.yaml`, readable by a clinician, no code.
-
-Click **Accept**.
 
 **Be honest about what happens next.** The route changes from 1858 m to 1877 m, mean
 radiant temperature along it drops from 51.3 °C to 48.5 °C and the peak from 67.0 °C to
@@ -146,13 +141,15 @@ the router is the demonstration.
 and 0 of 102 after it. Retype the same query: every refusal observed was rescued by one
 retry.
 
-**The card shows something absurd.** Good. That is the demonstration. Correct it on the
-card and accept. The point of the card is that a model this small is wrong often and a
-person has to be in the loop before anything routes.
+**The disclosure block shows something absurd.** Say so out loud, because it is the
+demonstration: a model this small is wrong often, and the block is there so the person can
+see what it decided rather than discovering it in the route. There is no longer a way to
+correct it before routing; that trade is recorded in HANDOFF.md section 2c.
 
-**The route does not draw.** Check the dispatch control. If it reads "What can I reach" the
-router looks for comfort resources instead of routing between two points, and you will get
-"0 places" rather than a line. Clearing the minutes field puts it back.
+**The request says "Route between two places" for a "find me a" query.** Stage 1 writes the
+kind of place into the destination field. If the destination will not route, dispatch
+retries it as a search for the nearest one and says so in yellow above the route. That
+notice is the interesting part, not a glitch to apologise for.
 
 ---
 
@@ -166,6 +163,7 @@ router looks for comfort resources instead of routing between two points, and yo
 | Best thermal routing case | East Harlem, **−14.5 °C mean MRT for +22 m**, +1.6% |
 | Intent, before it was deleted | wrong in **65%** of runs; majority-class baseline would be 53% wrong |
 | Dispatch, after | derived from two slots, reproduces **17 of 17** fixtures with no inference |
+| Confirmation card | **removed.** What the model read is disclosed after routing, not before |
 | Decoder refusals | **3.92%** before retry, **0 of 102** after |
 | Heat deaths, NYC | about **500 a year** (DOHMH, 2018-2022) |
 | PM2.5 deaths, NYC | about **2,000 a year** (DOHMH). Not "more than 2,000", and not one in twenty |
@@ -178,3 +176,6 @@ router looks for comfort resources instead of routing between two points, and yo
 - "Curbside air quality." The NYCCAS rasters are 300 m. That is corridor scale, and both
   sides of a street fall in one cell.
 - "The model picks the tool." It does not any more. Two slots do.
+- "Nothing can be silently dropped." That was true when the confirmation card existed. It
+  no longer is: a condition the model misses now reaches the route, and the person finds
+  out from the disclosure block afterwards.

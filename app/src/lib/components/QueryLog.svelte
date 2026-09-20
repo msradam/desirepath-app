@@ -142,7 +142,7 @@
     font-weight: 800;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--subtle);
+    color: var(--muted);
     white-space: nowrap;
     font-family: var(--font-mono);
   }
@@ -154,7 +154,7 @@
   .entry-empty {
     padding: 12px 14px;
     font-size: 11px;
-    color: var(--subtle);
+    color: var(--muted);
     font-style: italic;
   }
 </style>

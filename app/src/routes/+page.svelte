@@ -19,8 +19,11 @@
   import { NarrationService } from '$lib/services/narration-service';
   import type { NarrationCallbacks } from '$lib/services/narration-service';
   import { ExtractionService, resolveEffects, decoderStats } from '$lib/services/extraction';
+  import type { ResolvedEffects } from '$lib/services/extraction';
   import { CONDITION_DEFAULTS, CONDITION_EFFECTS } from '$lib/domain/condition-effects';
   import type { TravelProfile } from '$lib/domain/profile-grammar';
+  import { CONDITION_LABELS } from '$lib/domain/profile-grammar';
+  import { dispatchFor, TOOL_LABELS } from '$lib/domain/dispatch';
   import type { Tool } from '$lib/domain/dispatch';
 
   // Stores
@@ -34,7 +37,6 @@
   import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
   import QueryLog from '$lib/components/QueryLog.svelte';
   import ActiveRecord from '$lib/components/ActiveRecord.svelte';
-  import ProfileCard from '$lib/components/ProfileCard.svelte';
   import RouteMap from '$lib/components/RouteMap.svelte';
   import SearchBar from '$lib/components/SearchBar.svelte';
 
@@ -74,7 +76,21 @@
   // Stage 1's output, waiting for the user. Nothing routes while this is set:
   // the whole reason the card exists is that a constraint the model dropped
   // must be visible before it can affect a route, not after.
-  let pending = $state<{ profile: TravelProfile; query: string; constrained: boolean } | null>(null);
+  /**
+   * What stage 1 read out of the last sentence, for disclosure after the fact.
+   *
+   * This is what is left of the confirmation card. It cannot prevent a route
+   * being planned on a dropped constraint; it can only make the omission
+   * readable once it has happened.
+   */
+  let inferred = $state<{
+    profile: TravelProfile;
+    tool: Tool;
+    effects: ResolvedEffects;
+    query: string;
+    /** Set when dispatch had to reinterpret the request to answer it at all. */
+    corrected?: string;
+  } | null>(null);
   let booted = $state(false);
   let gpuError = $state('');
 
@@ -126,6 +142,12 @@
           },
           addSys(text) {
             queryLog.updateRecord(entryId, { botText: text });
+            speak(text);
+          },
+          noteCorrection(text, tool) {
+            // Into the disclosure block, which is rendered, and spoken, so the
+            // reinterpretation is not something a person has to go looking for.
+            if (inferred) inferred = { ...inferred, corrected: text, tool: tool ?? inferred.tool };
             speak(text);
           },
           drawRoute(result) {
@@ -188,22 +210,34 @@
 
   // ── Send handler ──────────────────────────────────────────────────────────
   //
-  // Stage 1 only. It extracts a profile and stops. Stage 2 runs from
-  // acceptProfile(), after the user has seen the form and agreed with it.
+  // All three stages, in one go. Stage 1 reads the sentence into a profile,
+  // dispatch.ts picks the tool from the slots, stage 2 routes, stage 3
+  // narrates.
+  //
+  // There is no confirmation step any more. What the model inferred is
+  // disclosed on the result instead of before it, which is a real weakening of
+  // the original guarantee and is recorded as such in HANDOFF.md: a constraint
+  // the model dropped is now visible only after a route has been planned
+  // without it. The disclosure is not optional and is not behind a control,
+  // because it is the only thing left standing in for the card.
   async function handleSend(query: string) {
     if (get(queryBusy) || !routerService) return;
     if (extractionService && narrationService) {
       queryBusy.set(true);
+      const entryId = queryLog.addEntry(query);
       try {
         const result = await extractionService.extract(query);
-        pending = { profile: result.profile, query, constrained: result.constrained };
+        const profile = result.profile;
+        const tool = dispatchFor(profile);
+        const effects = resolveEffects(profile.conditions, CONDITION_EFFECTS, CONDITION_DEFAULTS);
+        inferred = { profile, tool, effects, query };
+        await narrationService.runConfirmedProfile(profile, tool, effects, query, callbacks(entryId));
       } catch (e) {
-        const entryId = queryLog.addEntry(query);
         queryLog.updateRecord(entryId, {
           botText: `I could not read that into a form: ${(e as Error).message}`,
         });
-        queryLog.finishEntry(entryId);
       } finally {
+        queryLog.finishEntry(entryId);
         queryBusy.set(false);
       }
       return;
@@ -393,29 +427,6 @@
     return null;
   });
 
-  /** The user accepted or corrected the form. Now, and only now, route. */
-  async function acceptProfile(profile: TravelProfile, tool: Tool) {
-    const ctx = pending;
-    pending = null;
-    if (!ctx || !narrationService || get(queryBusy)) return;
-
-    const effects = resolveEffects(profile.conditions, CONDITION_EFFECTS, CONDITION_DEFAULTS);
-    queryBusy.set(true);
-    const entryId = queryLog.addEntry(ctx.query);
-    try {
-      await narrationService.runConfirmedProfile(profile, tool, effects, ctx.query, callbacks(entryId));
-    } catch (e) {
-      queryLog.updateRecord(entryId, { botText: `Sorry. ${(e as Error).message}` });
-    } finally {
-      queryLog.finishEntry(entryId);
-      queryBusy.set(false);
-    }
-  }
-
-  function cancelProfile() {
-    pending = null;
-  }
-
   // Derive the active/last entry for ActiveRecord
   const activeEntry = $derived(
     $queryLog.find(e => e.status === 'active') ?? ($queryLog.length > 0 ? $queryLog[$queryLog.length - 1] : null)
@@ -457,14 +468,45 @@
         </div>
       {/if}
       <QueryLog />
-      {#if pending}
-        <ProfileCard
-          profile={pending.profile}
-          query={pending.query}
-          constrained={pending.constrained}
-          onaccept={acceptProfile}
-          oncancel={cancelProfile}
-        />
+      {#if inferred}
+        <!--
+          What the model read out of the sentence, after the fact. Not a
+          confirmation: the route below was already planned on these values.
+        -->
+        <section class="inferred" aria-label="What the model read from your sentence">
+          <h2>Read from “{inferred.query}”</h2>
+          <dl>
+            <div><dt>Request</dt><dd>{TOOL_LABELS[inferred.tool]}</dd></div>
+            <div>
+              <dt>Conditions</dt>
+              <dd>
+                {#if inferred.profile.conditions.length}
+                  {inferred.profile.conditions.map((c) => CONDITION_LABELS[c] ?? c).join(', ')}
+                {:else}
+                  none read
+                {/if}
+              </dd>
+            </div>
+            <div>
+              <dt>Heat</dt>
+              <dd>
+                {#if inferred.effects.heat_aware}
+                  priced, sun inflation {inferred.effects.sun_inflation.toFixed(2)}
+                {:else}
+                  not priced
+                {/if}
+              </dd>
+            </div>
+          </dl>
+          {#if inferred.corrected}
+            <p class="corrected">{inferred.corrected}</p>
+          {/if}
+          <p class="warn">
+            The route below was planned on these values. If the model missed something you
+            said, it is missing from the route too. Say it again more plainly and send it
+            back.
+          </p>
+        </section>
       {/if}
       <ActiveRecord entry={activeEntry} />
     {/if}
@@ -570,8 +612,9 @@
     justify-content: space-between;
     gap: 12px;
     padding: 10px 14px;
-    background: var(--ink);
-    color: var(--paper);
+    background: var(--slate-2);
+    color: var(--bone);
+    border-bottom: var(--rule-hair) solid var(--subtle);
     flex: none;
   }
 
@@ -581,9 +624,9 @@
     letter-spacing: -0.02em;
     text-transform: uppercase;
     text-decoration: none;
-    color: var(--paper);
+    color: var(--bone);
   }
-  .wordmark span { color: var(--barricade); }
+  .wordmark span { color: var(--hivis); }
 
   .cross {
     font-family: var(--font-mono);
@@ -591,23 +634,80 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--paper);
+    color: var(--bone);
     text-decoration: none;
-    padding: 5px 8px;
+    padding: 7px 9px;
     border: 2px solid var(--subtle);
   }
-  .cross:hover { border-color: var(--barricade); color: var(--barricade); }
-  .cross:focus-visible { outline: 3px solid var(--barricade); outline-offset: 2px; }
+  .cross:hover { border-color: var(--hivis); color: var(--hivis); }
+  .cross:focus-visible { outline: 3px solid var(--hivis); outline-offset: 2px; }
 
   .left-col {
     width: 460px;
     flex-shrink: 0;
-    border-right: 3px solid var(--ink);
+    border-right: var(--rule-hair) solid var(--subtle);
     display: flex;
     flex-direction: column;
     min-height: 0;
-    overflow: hidden;
+    /* Scrolls. It used to be `hidden` with no scrollable child, which silently
+       clipped everything below the fold. */
+    overflow-y: auto;
+    overflow-x: hidden;
     background: var(--bg);
+  }
+
+  .inferred {
+    margin: 0 14px 14px;
+    padding: 14px 16px 16px;
+    background: var(--slate-3);
+    border-left: 3px solid var(--hivis);
+  }
+
+  .inferred h2 {
+    font-size: 0.85rem;
+    font-weight: 800;
+    line-height: 1.3;
+    color: var(--bone);
+  }
+
+  .inferred dl {
+    display: grid;
+    gap: 4px;
+    margin-top: 10px;
+  }
+  .inferred dl div {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: 10px;
+    font-size: 0.8rem;
+    line-height: 1.35;
+  }
+  .inferred dt {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-top: 2px;
+  }
+  .inferred dd { color: var(--bone); font-weight: 600; }
+
+  .inferred .corrected {
+    margin-top: 10px;
+    padding: 8px 10px;
+    font-size: 0.76rem;
+    line-height: 1.4;
+    font-weight: 600;
+    color: var(--slate);
+    background: var(--hivis);
+  }
+
+  .inferred .warn {
+    margin-top: 10px;
+    font-size: 0.74rem;
+    line-height: 1.45;
+    color: var(--muted);
   }
 
   /* Map column */
@@ -734,13 +834,13 @@
     right: 16px;
     bottom: 16px;
     z-index: 12;
-    background: var(--ink);
-    color: var(--bg);
-    border: 2px solid var(--ink);
+    background: var(--slate-2);
+    color: var(--bone);
+    border: 2px solid var(--subtle);
     display: grid;
     grid-template-columns: 220px 1fr 240px;
     align-items: stretch;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
   }
 
   .rs-block {
@@ -752,9 +852,12 @@
     min-width: 0;
   }
 
+  /* The total is the one cell that steps forward, so it takes the raised
+     ground rather than a darker one. It used to be a near-black that went
+     invisible the moment the world became dark. */
   .rs-block--total {
-    background: oklch(0.20 0.02 60);
-    border-right: 1px solid rgba(255,255,255,0.12);
+    background: var(--slate-3);
+    border-right: var(--rule-hair) solid var(--subtle);
   }
 
   .rs-eyebrow {
@@ -762,7 +865,7 @@
     font-weight: 800;
     letter-spacing: 0.20em;
     text-transform: uppercase;
-    opacity: 0.55;
+    color: var(--muted);
     font-family: var(--font-mono);
   }
 
@@ -781,7 +884,7 @@
   }
 
   .rs-block--legs {
-    border-right: 1px solid rgba(255,255,255,0.12);
+    border-right: var(--rule-hair) solid var(--subtle);
     gap: 8px;
   }
 
@@ -810,7 +913,7 @@
     font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.18em;
-    opacity: 0.55;
+    color: var(--muted);
     font-family: var(--font-mono);
   }
 
@@ -833,7 +936,7 @@
   }
 
   .rs-key {
-    opacity: 0.55;
+    color: var(--muted);
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -970,11 +1073,11 @@
     }
     .rs-block--total {
       border-right: none;
-      border-bottom: 1px solid rgba(255,255,255,0.12);
+      border-bottom: var(--rule-hair) solid var(--subtle);
     }
     .rs-block--legs {
       border-right: none;
-      border-bottom: 1px solid rgba(255,255,255,0.12);
+      border-bottom: var(--rule-hair) solid var(--subtle);
     }
     .rs-total { font-size: 24px; }
     .rs-leg-name { font-size: 12px; }

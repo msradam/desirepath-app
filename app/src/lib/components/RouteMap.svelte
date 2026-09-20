@@ -24,7 +24,7 @@
   let userLocationMarker: import('maplibre-gl').Marker | null = null;
 
   // Tile server: Z3 (infrastructure). Positron = clean warm-light style.
-  const TILE_URL = 'https://tiles.openfreemap.org/styles/positron';
+  const TILE_URL = 'https://tiles.openfreemap.org/styles/dark';
 
   function emptyFC(): GeoJSON.FeatureCollection {
     return { type: 'FeatureCollection', features: [] };
@@ -60,9 +60,11 @@
     isoLabels = [`≤ ${t1} min`, `≤ ${t2} min`, `≤ ${maxMinutes} min`];
   }
 
-  // ADA route color: deep purple. Hex form because MapLibre paint
-  // properties (including data-driven `['get', 'color']`) don't accept oklch.
-  const ROUTE_COLOR = '#3a2a9c';
+  // The route, in the same cold cyan the coverage view uses for what a person
+  // can actually reach. Hex form because MapLibre paint properties, including
+  // the data-driven `['get', 'color']`, do not read CSS custom properties.
+  // It was a deep purple, which disappeared into the dark basemap.
+  const ROUTE_COLOR = '#3BB8D4';
 
   // Called by +page.svelte after route computation
   export function drawRoute(result: ComfortRouteOk) {
@@ -182,9 +184,8 @@
 
     // Radius circle source + layers
     map.addSource('radius-circle', { type: 'geojson', data: emptyFC() });
-    // MapLibre paint properties don't accept oklch(). Use a hex equivalent
-    // of the --route token (deep purple).
-    const ROUTE_HEX = '#3a2a9c';
+    // Matches ROUTE_COLOR above; see the note there.
+    const ROUTE_HEX = '#3BB8D4';
     map.addLayer({
       id: 'radius-circle-fill',
       type: 'fill',

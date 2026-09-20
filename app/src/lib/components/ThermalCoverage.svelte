@@ -46,7 +46,7 @@
   let { nta = 'BK1602' }: { nta?: string } = $props();
 
   const READING = 'spray showers and misting only';
-  const TILE_URL = 'https://tiles.openfreemap.org/styles/positron';
+  const TILE_URL = 'https://tiles.openfreemap.org/styles/dark';
 
   async function loadCoverage(code: string): Promise<Coverage> {
     const url = `/output/${code}-coverage.json`;
@@ -119,10 +119,11 @@
 
   function palette() {
     return {
-      claimed: token('--ink', '#121212'),
-      shortfall: token('--barricade', '#FF5A00'),
-      reachable: token('--signal', '#0B3CC1'),
-      paper: token('--paper', '#F2EFE6'),
+      claimed: token('--muted', '#8C9AAB'),
+      shortfall: token('--hivis', '#FFC400'),
+      reachable: token('--reach', '#5FD4E8'),
+      paper: token('--slate', '#10263F'),
+      bone: token('--bone', '#F5F1E8'),
     };
   }
 
@@ -247,7 +248,7 @@
         const c = palette();
         const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-        map.addImage('site', markerImage(c.claimed, c.paper));
+        map.addImage('site', markerImage(c.bone, c.paper));
 
         map.addSource('boundary', { type: 'geojson', data: boundaryFC(d.boundary) });
         map.addSource('claimed', { type: 'geojson', data: claimed });
@@ -264,7 +265,7 @@
           type: 'line',
           source: 'boundary',
           layout: { 'line-join': 'miter' },
-          paint: { 'line-color': c.claimed, 'line-width': 3 },
+          paint: { 'line-color': c.bone, 'line-width': 2.5 },
         });
         // Claimed pavement: a hairline, dotted. Colour is the third channel
         // here, never the only one.
@@ -275,7 +276,7 @@
           layout: { 'line-join': 'miter', 'line-cap': 'butt' },
           paint: {
             'line-color': c.claimed,
-            'line-width': 1.25,
+            'line-width': 1.5,
             'line-dasharray': [1, 2],
             'line-opacity': 0.7,
           },
@@ -307,10 +308,10 @@
           type: 'line',
           source: 'rings',
           paint: {
-            'line-color': c.claimed,
-            'line-width': 2,
+            'line-color': c.bone,
+            'line-width': 1.75,
             'line-dasharray': [5, 4],
-            'line-opacity': 0.9,
+            'line-opacity': 0.75,
           },
         });
         map.addLayer({
@@ -351,13 +352,13 @@
         observer = new MutationObserver(() => {
           if (!map) return;
           const p = palette();
-          map.setPaintProperty('boundary-line', 'line-color', p.claimed);
+          map.setPaintProperty('boundary-line', 'line-color', p.bone);
           map.setPaintProperty('claimed-line', 'line-color', p.claimed);
           map.setPaintProperty('shortfall-line', 'line-color', p.shortfall);
           map.setPaintProperty('reachable-line', 'line-color', p.reachable);
-          map.setPaintProperty('ring-line', 'line-color', p.claimed);
+          map.setPaintProperty('ring-line', 'line-color', p.bone);
           if (map.hasImage('site')) map.removeImage('site');
-          map.addImage('site', markerImage(p.claimed, p.paper));
+          map.addImage('site', markerImage(p.bone, p.paper));
         });
         observer.observe(document.documentElement, {
           attributes: true,
@@ -384,19 +385,16 @@
   {@const reading = d.readings?.[READING]}
   {#if reading && reading.elements > 0}
     <section class="notice">
-      <!-- The claim, and what it costs. Two blocks, one heavy rule. -->
+      <!--
+        The subject, then the figure. The City's sentence used to be pinned
+        across the top at display size, which made the screen look like it was
+        quoting rather than measuring. It is attribution, so it belongs with
+        the rest of the provenance at the foot, at the size attribution is.
+      -->
       <header class="band">
-        <div class="claim">
-          <p class="claim-text">“{d.city_claim.text}”</p>
-          <p class="claim-src">{d.city_claim.source}</p>
-        </div>
-        <div class="gap">
-          <p class="gap-num">{gapOf(reading)}</p>
-          <p class="gap-unit">points overstated</p>
-          <p class="gap-say">
-            {d.name} pavement the quarter mile counts and heat takes away
-          </p>
-        </div>
+        <p class="where">{d.name}<span class="boro">, {d.borough}</span></p>
+        <p class="gap-num">{gapOf(reading)}</p>
+        <p class="gap-unit">points the claim overstates</p>
       </header>
 
       <div class="sheet">
@@ -433,10 +431,11 @@
           <p class="census-num">{reading.elements}</p>
           <p class="census-say">
             {reading.elements === 1 ? 'cooling element' : 'cooling elements'} for
-            {d.area_km2 ? `${d.area_km2.toFixed(2)} km² of ` : 'all of '}{d.name}, {d.borough}.
+            {d.area_km2 ? `${d.area_km2.toFixed(2)} km² of ` : 'all of '}{d.name}.
             Spray showers and misting stations, counted without drinking fountains.
           </p>
           <p class="honesty">
+            The claim under test: “{d.city_claim.text}” {d.city_claim.source}.
             Radiant temperature here is a proxy, not SOLWEIG. The City also opens hydrant spray
             caps during heat advisories; those are not in the published dataset and are not
             counted.
@@ -453,11 +452,10 @@
             No spray showers. No misting stations. There is nothing in {d.name} to be a quarter
             mile away from.
           </p>
-          <p class="claim-text">“{d.city_claim.text}”</p>
-          <p class="claim-src">{d.city_claim.source}</p>
           <p class="honesty">
             A Heat Vulnerability Index 4 to 5 neighbourhood. The claim covers none of {d.name}'s
-            sidewalk network, because the network leads nowhere.
+            sidewalk network, because the network leads nowhere. The claim under test:
+            “{d.city_claim.text}” {d.city_claim.source}.
           </p>
         </div>
       </div>
@@ -480,83 +478,51 @@
     grid-template-rows: auto minmax(0, 1fr) auto;
     height: 100%;
     min-height: 0;
-    background: var(--paper);
+    background: var(--slate);
     color: var(--ink);
     font-family: var(--font-sans);
   }
 
-  /* ── The claim band ────────────────────────────────────────────────────── */
+  /* ── The band ──────────────────────────────────────────────────────────
+     One line: where, and by how much. The map starts immediately under it. */
   .band {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(19rem, 30%, 27rem);
-    align-items: stretch;
-    border-bottom: var(--rule-heavy) solid var(--ink);
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    gap: 0 22px;
+    padding: 16px 24px 18px;
+    border-bottom: var(--rule-heavy) solid var(--bone);
   }
 
-  .claim {
-    align-self: center;
-    padding: 20px 28px 20px 24px;
-  }
-
-  /* The City's own sentence, set at the scale a notice sets its subject line.
-     It is in quotation marks because it is a quotation, and the source sits
-     under it in the mono the rest of the furniture uses. */
-  .claim-text {
-    max-width: 40ch;
-    font-size: clamp(1.05rem, 0.6rem + 1.25vw, 1.85rem);
-    font-weight: 700;
-    line-height: 1.16;
-    letter-spacing: -0.018em;
-    text-wrap: balance;
-  }
-
-  .claim-src {
-    margin-top: 10px;
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-
-  /* The figure, on the black placard a work notice puts its headline on.
-     Orange on paper is not a contrast ratio anyone should read type at; orange
-     on black is, and the inversion is what makes this the loudest thing on the
-     sheet from the back of a room. */
-  .gap {
-    display: grid;
-    align-content: center;
-    padding: 18px 24px 20px;
-    background: var(--ink);
-    color: var(--paper);
-    text-align: right;
-  }
-
-  .gap-num {
-    font-size: clamp(4rem, 1.2rem + 8.5vw, 8rem);
+  .where {
+    font-size: clamp(1.1rem, 0.75rem + 1.1vw, 1.9rem);
     font-weight: 900;
-    line-height: 0.8;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    color: var(--bone);
+  }
+  .boro { color: var(--muted); font-weight: 700; }
+
+  /* The figure. The only yellow on the screen that is type. */
+  .gap-num {
+    font-size: clamp(3.2rem, 1.2rem + 6.2vw, 6.5rem);
+    font-weight: 900;
+    line-height: 0.78;
     letter-spacing: -0.045em;
-    color: var(--barricade);
+    color: var(--hivis);
   }
 
   .gap-unit {
-    margin-top: 10px;
-    font-size: clamp(0.85rem, 0.62rem + 0.6vw, 1.2rem);
-    font-weight: 900;
-    letter-spacing: 0.08em;
+    max-width: 11ch;
+    padding-left: 2px;
+    text-wrap: balance;
+    font-size: clamp(0.8rem, 0.66rem + 0.36vw, 1rem);
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
-    color: var(--paper);
-  }
-
-  .gap-say {
-    margin-top: 8px;
-    max-width: 28ch;
-    margin-left: auto;
-    font-size: 0.78rem;
-    line-height: 1.4;
-    color: #C9C4B6;
+    color: var(--bone);
   }
 
   /* ── The evidence ──────────────────────────────────────────────────────── */
@@ -569,7 +535,7 @@
   .map {
     position: absolute;
     inset: 0;
-    background: var(--paper-2);
+    background: var(--slate-2);
   }
 
   .map :global(.maplibregl-ctrl-attrib) {
@@ -775,12 +741,6 @@
     line-height: 1.2;
     text-wrap: balance;
   }
-  .zero-body .claim-text {
-    margin-top: 24px;
-    max-width: 52ch;
-    font-size: clamp(0.95rem, 0.85rem + 0.35vw, 1.2rem);
-    font-weight: 600;
-  }
   .zero-body .honesty { margin-top: 16px; max-width: 58ch; font-size: 0.8rem; }
 
   .stencil {
@@ -796,8 +756,7 @@
       grid-template-columns: minmax(0, 1fr);
       align-items: start;
     }
-    .claim { padding: 14px 16px 12px; }
-    .gap {
+      .gap {
       text-align: left;
       padding: 14px 16px 16px;
     }

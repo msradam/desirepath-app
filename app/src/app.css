@@ -57,56 +57,79 @@
   src: url('/fonts/overpass-mono-700.woff2') format('woff2');
 }
 
-/* ── Design tokens. Street Work Notice ────────────────────────────────────────
-   The world is the municipal notice taped to a lamppost: stencil black on sign
-   white, barricade orange for the thing being reported, one process blue for
-   what actually works. Every fill that means something also carries a hatch or
-   a dash, because this gets projected into a bright room and a colour-blind
-   viewer at the back has to read it too.
-   Overpass is here because it descends from FHWA Highway Gothic, which is the
-   lettering on the signs this world is made of.
+/* ── Design tokens. Drenched slate ───────────────────────────────────────────
+   The surface is the colour. A deep slate field runs edge to edge and the map
+   is knocked out of it, so the screen reads as one object rather than as
+   panels arranged on a page.
+   Three inks do all the work: bone for what is said, high-visibility yellow
+   for the shortfall and nothing else, and a cold cyan for what a person can
+   actually reach.
+
+   Every ink here clears WCAG AA against every ground it is used on, measured
+   rather than eyeballed; the worst pair is muted on the raised ground at
+   4.80:1. --subtle is the one exception and is border-only, never type. The
+   yellow and the cyan are also separated in relative luminance (0.61 against
+   0.40) so they do not collapse into each other on a washed-out projector, and
+   every fill that carries meaning carries a dash or a hatch as well, so none
+   of the information rests on hue at all.
+   Overpass because it descends from the FHWA Highway Gothic on the signage
+   this vocabulary comes from.
    --------------------------------------------------------------------------- */
 :root {
-  --paper:     #F2EFE6;   /* duplicator stock */
-  --paper-2:   #E6E2D6;
-  --ink:       #121212;   /* stencil black */
-  --ink-2:     #3A3733;
-  --muted:     #5E5A51;   /* concrete. Dark enough to clear 4.5:1 on paper-2 */
-  --subtle:    #8C877C;
-  --barricade: #FF5A00;   /* the shortfall, and only the shortfall */
-  --barricade-deep: #A83500;  /* orange that survives as type on paper */
-  --signal:    #0B3CC1;   /* what a person can actually reach */
-  --signal-2:  #0930A0;
+  --slate:     #10263F;   /* the field */
+  --slate-2:   #0A1B2D;   /* recessed: wells, the map's own ground */
+  --slate-3:   #1B3A5C;   /* raised: the one step above the field */
+  --bone:      #F5F1E8;
+  --bone-2:    #C6C1B5;
+  --muted:     #9AA8B8;   /* cold grey. 4.80:1 on the lightest ground, so it is
+                             safe for body text everywhere */
+  --subtle:    #7A90A8;   /* borders and dividers only. 3.53:1 at worst, which
+                             clears SC 1.4.11 for a UI component and is NOT
+                             enough for text. Never set type in this. */
+  --hivis:     #FFC400;   /* the shortfall, and nothing else */
+  --hivis-2:   #FFD84D;
+  --reach:     #3BB8D4;   /* what is actually reachable. Darkened from the first
+                             pick so it separates from the yellow by lightness
+                             and not only by hue */
+  --reach-2:   #7FD6E8;
 
-  --bg:        var(--paper);
-  --bg-2:      var(--paper-2);
-  --surface:   var(--paper);
-  --surface-2: var(--paper-2);
-  --border:    var(--ink);
-  --border-2:  var(--ink);
-  --rule:      var(--ink);
+  --bg:        var(--slate);
+  --bg-2:      var(--slate-2);
+  --surface:   var(--slate);
+  --surface-2: var(--slate-2);
+  --ink:       var(--bone);
+  --ink-2:     var(--bone-2);
+  --border:    var(--subtle);
+  --border-2:  var(--subtle);
+  --rule:      var(--bone);
 
-  --primary:    var(--signal);
-  --primary-2:  var(--signal-2);
-  --primary-on: var(--paper);
+  --primary:    var(--reach);
+  --primary-2:  var(--reach-2);
+  --primary-on: var(--slate);
 
-  --accent:    var(--barricade);
-  --accent-2:  var(--barricade);
-  --ok:        var(--signal);
-  --warn:      var(--barricade);
-  --error:     var(--barricade-deep);
+  --accent:    var(--hivis);
+  --accent-2:  var(--hivis-2);
+  --ok:        var(--reach);
+  --warn:      var(--hivis);
+  --error:     var(--hivis);
 
-  /* Route and POI ink. Blue is reachable, orange is the problem, black is fact. */
-  --route:       var(--signal);
-  --poi-cooling: var(--barricade-deep);
-  --poi-access:  var(--ink);
+  /* Route and POI ink. */
+  --route:       var(--reach);
+  --poi-cooling: var(--hivis);
+  --poi-access:  var(--bone);
 
   /* Legacy aliases. Keep existing components compiling. */
+  --paper:       var(--slate);
+  --paper-2:     var(--slate-2);
+  --barricade:      var(--hivis);
+  --barricade-deep: var(--hivis);
+  --signal:      var(--reach);
+  --signal-2:    var(--reach-2);
   --fg:          var(--ink);
   --fg-muted:    var(--muted);
   --fg-subtle:   var(--subtle);
   --bg-elevated: var(--surface);
-  --route-transit: var(--barricade-deep);
+  --route-transit: var(--hivis);
 
   /* Subway line colors. Untouched: they are the MTA's, not ours. */
   --line-A: #0039A6;
@@ -119,30 +142,8 @@
   --font-sans: 'Overpass', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-mono: 'Overpass Mono', ui-monospace, Menlo, monospace;
 
-  /* The sign's own furniture. */
-  --rule-heavy: 4px;
-  --rule-hair: 1.5px;
-  --stripe: repeating-linear-gradient(
-    45deg,
-    var(--barricade) 0 7px,
-    #7A2B00 7px 14px
-  );
-}
-
-/* Dark mode is the same sign under a streetlight, not a different design. The
-   ground goes to asphalt and the inks brighten enough to hold their contrast. */
-[data-mode='dark'] {
-  --paper:     #17150F;
-  --paper-2:   #201D16;
-  --ink:       #F4F1E6;
-  --ink-2:     #D6D1C2;
-  --muted:     #A19B8C;
-  --subtle:    #7E786B;
-  --barricade: #FF7A2E;
-  --barricade-deep: #FF9250;
-  --signal:    #7FA8FF;
-  --signal-2:  #A6C4FF;
-  --primary-on: #17150F;
+  --rule-heavy: 3px;
+  --rule-hair: 1px;
 }
 
 /* ── Global reset ───────────────────────────────────────────────────────────── */
@@ -160,19 +161,19 @@ body {
 }
 
 /* ── Browser surfaces. These belong to the sign too. ────────────────────────── */
-::selection { background: var(--barricade); color: #FFFFFF; }
+::selection { background: var(--hivis); color: #10263F; }
 
 :focus-visible {
-  outline: 3px solid var(--ink);
+  outline: 3px solid var(--hivis);
   outline-offset: 2px;
   border-radius: 0;
 }
 :focus:not(:focus-visible) { outline: none; }
 
-* { scrollbar-width: thin; scrollbar-color: var(--ink) transparent; }
+* { scrollbar-width: thin; scrollbar-color: var(--subtle) var(--slate-2); }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
-*::-webkit-scrollbar-track { background: var(--paper-2); }
-*::-webkit-scrollbar-thumb { background: var(--ink); border: 2px solid var(--paper-2); }
+*::-webkit-scrollbar-track { background: var(--slate-2); }
+*::-webkit-scrollbar-thumb { background: var(--subtle); border: 2px solid var(--slate-2); }
 
 /* Data is read, compared and said out loud. It gets real tabular figures. */
 .mono, .tnum, [class*='-pct'], [class*='-num'] { font-variant-numeric: tabular-nums; }

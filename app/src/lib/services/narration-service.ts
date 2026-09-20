@@ -203,6 +203,14 @@ export type NarrationCallbacks = {
   addSteps(steps: RouteStep[]): void;
   addTool(name: string, args: unknown): (result: unknown) => void;
   addSys(text: string): void;
+  /**
+   * The dispatch was corrected after the fact, and the person must be told.
+   *
+   * Reinterpreting a request without saying so is the failure this project is
+   * about, so the correction goes somewhere rendered rather than into a system
+   * line nothing displays.
+   */
+  noteCorrection?(text: string, tool?: Tool): void;
   drawRoute(result: ComfortRouteOk): void;
   drawReachable(result: ReachableRouteOk, meta: { budgetExplicit: boolean }): void;
   setReceipts?(r: {
@@ -253,7 +261,16 @@ export class NarrationService {
     let args: Record<string, unknown>;
     switch (tool) {
       case 'plan_route':
-        args = { ...shared, from: profile.origin, to: profile.destination ?? '' };
+        args = {
+          ...shared,
+          from: profile.origin,
+          to: profile.destination ?? '',
+          // Carried, not used by planRoute. It is what the fallback in
+          // dispatch() needs to know this was a resource request wearing a
+          // destination, which is what stage 1 produces for "find me a
+          // cooling center".
+          resource_types: profile.resource_types,
+        };
         break;
       case 'find_reachable_resources':
         args = {
@@ -405,6 +422,44 @@ export class NarrationService {
       result = await this.routerService.findComfortAndRoute(args as Parameters<RouterService['findComfortAndRoute']>[0]);
     } else {
       result = await this.routerService.planRoute(args as Parameters<RouterService['planRoute']>[0]);
+
+      // A destination the geocoder cannot place was never a destination.
+      //
+      // Stage 1 reliably writes the KIND of place into `destination` when the
+      // person described a need instead of naming somewhere: "find me a
+      // cooling center" comes back as destination "cooling center", which
+      // dispatch.ts can only read as a named place. Four of the seventeen
+      // fixtures do this.
+      //
+      // The geocoder is the thing that actually knows whether a string is a
+      // place in New York, so it decides. If it could not place the
+      // destination and the person gave us a resource type to look for, this
+      // was a comfort search all along, and we run it as one rather than
+      // handing back "I could not find that" for a question that has an
+      // answer. The receipt records that the dispatch was corrected.
+      const wantsResource = Array.isArray(args.resource_types) && args.resource_types.length > 0;
+      if (!result.ok && wantsResource && result.error !== NO_ORIGIN_ERROR) {
+        const fallbackArgs = {
+          ...args,
+          near: args.from ?? args.near,
+          resource_types: args.resource_types,
+        };
+        delete (fallbackArgs as Record<string, unknown>).from;
+        delete (fallbackArgs as Record<string, unknown>).to;
+        const retry = await this.routerService.findComfortAndRoute(
+          fallbackArgs as Parameters<RouterService['findComfortAndRoute']>[0],
+        );
+        if (retry.ok) {
+          cb.noteCorrection?.(
+            `“${String(args.to ?? '')}” is not somewhere I can route to, so this was ` +
+              `answered as a search for the nearest one instead.`,
+            'find_comfort_and_route',
+          );
+          name = 'find_comfort_and_route';
+          args = fallbackArgs as Record<string, unknown>;
+          result = retry;
+        }
+      }
     }
 
     if (!result.ok) {

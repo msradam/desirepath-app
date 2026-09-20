@@ -68,9 +68,10 @@ destination do not reach the internet, not that nothing leaves the browser.
   or corrected by the person on a card, and only then does anything route. Three stages:
   natural language to profile (model, grammar-constrained), profile to route (no model at
   all), route to explanation (model, over stage-2 facts only).
-- **The card is not decoration.** Every field the schema can produce has a control on it,
-  so a constraint the model dropped is visible before it can affect a route. Editing it
-  changes the route.
+- **What the model inferred is disclosed, after the fact.** A query routes on submit and
+  the block above the route names the request it dispatched to, the conditions it read and
+  whether heat was priced. The confirmation card that used to precede routing was removed
+  at the user's instruction; HANDOFF.md section 2c records what that costs.
 - **What a condition implies is a file, not code.** `config/condition-map.yaml`, versioned,
   readable by a clinician, arguable with.
 - **Thermal cost is mean radiant temperature**, modelled from a shadow and sky-view-factor
@@ -108,8 +109,9 @@ destination do not reach the internet, not that nothing leaves the browser.
 
 1. **The graph is the contribution.** Say so near the top, in the README and in the
    product. The app demonstrates what the data makes possible.
-2. **Nothing routes until a person agrees with the form.** A dropped constraint must be
-   impossible, not unlikely.
+2. **A person can always see what the software decided on their behalf.** This used to be
+   a stronger principle, that nothing routes until a person agrees with the form. It is
+   now disclosure after the fact rather than confirmation before it.
 3. **State the limit next to the number.** A proxy is labelled a proxy on the screen it
    appears on, not in a footnote nobody opens.
 4. **The shortfall is the artifact.** Not the route, not the model. What the quarter mile

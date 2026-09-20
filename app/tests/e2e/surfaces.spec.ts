@@ -10,7 +10,7 @@
  * That test adds a condition the user never stated, accepts, and asserts the
  * route actually came out different.
  */
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 const NEIGHBOURHOODS = [
   { code: 'BK1602', name: 'Brownsville', elements: 2 },
@@ -94,120 +94,11 @@ test.describe('reachability comparison view', () => {
   });
 });
 
-// ── the profile confirmation card ────────────────────────────────────────────
-
-async function bootApp(page: Page) {
-  await page.goto('/');
-  await page.waitForFunction(
-    () => {
-      const input = document.querySelector<HTMLInputElement>('.search-input');
-      return !!input && !input.disabled;
-    },
-    { timeout: 180_000 },
-  );
-}
-
-async function submit(page: Page, query: string) {
-  const input = page.locator('.search-input');
-  await input.fill(query);
-  await input.press('Enter');
-}
-
-/** The route strip only appears once stage 2 has produced a route. */
-async function routeSummary(page: Page): Promise<string> {
-  const strip = page.locator('.route-strip');
-  await expect(strip).toBeVisible({ timeout: 120_000 });
-  return strip.innerText();
-}
-
-test.describe('profile confirmation card', () => {
-  test.describe.configure({ mode: 'serial' });
-
-  test('nothing routes until the card is accepted', async ({ page }) => {
-    test.setTimeout(6 * 60_000);
-    await bootApp(page);
-    await submit(page, 'Penn Station to Grand Central');
-
-    const card = page.locator('.card');
-    await expect(card).toBeVisible({ timeout: 120_000 });
-    await expect(card).toContainText('Check this before anything routes');
-
-    // The map must still be empty: stage 2 has not run.
-    await expect(page.locator('.route-strip')).toHaveCount(0);
-
-    // Every field the grammar can emit has a control, and so does the
-    // dispatch, which the grammar no longer emits but the user can still fix.
-    await expect(card.locator('input[type="radio"][name$="-tool"]')).toHaveCount(3);
-    await expect(card).toContainText('Chosen from what you filled in below, not by the model');
-    await expect(card.locator('#\\3'.length ? 'input[type="text"]' : 'input')).not.toHaveCount(0);
-    await expect(card.locator('.consequence')).toBeVisible();
-
-    // Provenance is stated: a model filled this in, and a file decides what it means.
-    await expect(card).toContainText('condition-map.yaml');
-  });
-
-  test('accepting routes, and the condition map decides the profile', async ({ page }) => {
-    test.setTimeout(6 * 60_000);
-    await bootApp(page);
-    await submit(page, 'Penn Station to Grand Central');
-
-    const card = page.locator('.card');
-    await expect(card).toBeVisible({ timeout: 120_000 });
-    // With no condition stated, the thermal layer must be off.
-    await expect(card.locator('.consequence')).toContainText('thermal layer is off');
-
-    await card.locator('button.accept').click();
-    const summary = await routeSummary(page);
-    expect(summary.length).toBeGreaterThan(0);
-  });
-
-  test('editing the card changes the route', async ({ page }) => {
-    // The alpha criterion. A card that cannot change the outcome is decoration.
-    test.setTimeout(10 * 60_000);
-    await bootApp(page);
-
-    // A query with no health information at all.
-    await submit(page, 'Rockaway Avenue to Betsy Head Park');
-    const card = page.locator('.card');
-    await expect(card).toBeVisible({ timeout: 120_000 });
-    await expect(card.locator('.consequence')).toContainText('thermal layer is off');
-    await card.locator('button.accept').click();
-    const plain = await routeSummary(page);
-
-    // Same query, but the user corrects the form to say they cannot sweat,
-    // which config/condition-map.yaml maps to the strongest coefficient in
-    // the file. Nothing about the sentence changed; only the card did.
-    await submit(page, 'Rockaway Avenue to Betsy Head Park');
-    await expect(card).toBeVisible({ timeout: 120_000 });
-
-    const sweating = card.locator('label', { hasText: 'Reduced ability to sweat' }).locator('input');
-    await sweating.check();
-
-    // The consequence panel must react before anything routes.
-    await expect(card.locator('.consequence')).not.toContainText('thermal layer is off');
-    await expect(card.locator('.consequence')).toContainText('1.84');
-
-    await card.locator('button.accept').click();
-    const heatAware = await routeSummary(page);
-
-    expect(
-      heatAware,
-      'a condition added on the card must change the route it produces',
-    ).not.toEqual(plain);
-  });
-
-  test('an unresolved origin blocks accept and says why', async ({ page }) => {
-    test.setTimeout(6 * 60_000);
-    await bootApp(page);
-    // No origin given, so stage 1 emits the @me sentinel.
-    await submit(page, 'find me a cooling center');
-
-    const card = page.locator('.card');
-    await expect(card).toBeVisible({ timeout: 120_000 });
-    await expect(card.locator('button.accept')).toBeDisabled();
-    // The reason must be readable, not only encoded in a disabled attribute.
-    await expect(card).toContainText(/starting point|where you are/i);
-    // And @me must never be shown back to the user as though it were a place.
-    await expect(card.locator('input[type="text"]').first()).not.toHaveValue('@me');
-  });
-});
+/*
+ * The profile confirmation card's tests lived here and have been removed with
+ * the card itself. What they asserted (nothing routes until the card is
+ * accepted, and editing the card changes the route) is no longer true of this
+ * build: a query routes on submit and what the model inferred is disclosed
+ * afterwards. HANDOFF.md records that as a deliberate weakening of the
+ * original guarantee rather than as a passing test nobody noticed was gone.
+ */

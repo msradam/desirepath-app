@@ -105,15 +105,25 @@ elaborate it gets.
 
 ## 2b. The interface, rebuilt as DesirePath
 
-The project was renamed DesirePath and the interface rebuilt on one direction: the
-municipal street work notice. Stencil black on sign white, barricade orange for the
-shortfall, one process blue for what is reachable, and Overpass throughout, which descends
-from the Highway Gothic on the signs the world is made of. The typeface is self-hosted,
-which also took the Google Fonts fetch off the query path.
+The project was renamed DesirePath and the interface rebuilt. The palette went through two
+rounds: a light sign-white version was rejected, and the shipped one is a single saturated
+slate field running edge to edge with the map knocked out of it. Bone for what is said,
+high-visibility yellow for the shortfall and nothing else, cold cyan for what is reachable.
+Overpass throughout, which descends from the Highway Gothic on municipal signage, and it is
+self-hosted, which also took the Google Fonts fetch off the query path.
 
-Two screens now, and only two. `/coverage` is the notice: the DEP claim quoted at the top,
-the gap figure on a black placard, the map full bleed, the three readings stamped at the
-foot with what each one is down from. `/` is the routing view, which kept its work and
+Every ink clears WCAG AA against every ground it is used on, computed rather than eyeballed
+before the values were committed; the worst pair is `--muted` on the raised ground at
+4.80:1. `--subtle` is border-only and is documented in `app.css` as never for type. The
+yellow and the cyan are separated in relative luminance, 0.61 against 0.40, so they do not
+collapse into one another on a washed-out projector. A sweep over every rendered text node
+on both screens returns zero failures.
+
+Two screens now, and only two. `/coverage` is the notice: the neighbourhood and the gap
+figure on one line, the map full bleed, the three readings stamped at the foot with what
+each one is down from. The DEP claim is attribution and sits with the rest of the
+provenance at the foot, at the size attribution is; it was briefly set across the top at
+display size, which made the screen look like it was quoting rather than measuring. `/` is the routing view, which kept its work and
 gained the same plate. The brand rail, the session strip and the feed diagnostics are gone,
 along with `WayfindingStrip.svelte`, `SessionBar.svelte`, `FeedStatus.svelte` and
 `stores/network.ts`.
@@ -134,6 +144,36 @@ of its content.
 
 The direction contract is in `.impeccable/surfaces/`, product truth in `PRODUCT.md`, and
 the argument the whole thing exists to make is in `THESIS.md`.
+
+## 2c. The confirmation card was removed, and what that costs
+
+The original brief made one thing non-negotiable: a profile is proposed and then confirmed
+on an editable card, so that a silently dropped constraint is impossible. That card is
+gone. It was removed on the user's explicit instruction after they found it unusable: it
+rendered as a full-height wall of form inside a column with `overflow: hidden` and no
+scrollable child, so everything below the fold was clipped with no way to reach it.
+
+**This is a real weakening of the guarantee and should not be described as anything else.**
+A query now routes on submit. What stage 1 read out of the sentence is disclosed after the
+fact, in the block above the route: the tool it dispatched to, the conditions it read, and
+whether heat was priced. That block is not behind a control and says in as many words that
+the route was already planned on those values.
+
+What is lost is the part that mattered. Before, a condition the model failed to read could
+be added by the person before anything routed, and the route changed as a result. Now a
+missed condition produces a route planned without it, and the person finds out afterwards.
+Given the measured over- and under-generation on `conditions` (under-generation is the
+dangerous direction: "I can't handle the heat" once produced `conditions: []`), this will
+happen.
+
+The two end-to-end tests that asserted the old guarantee, "nothing routes until the card is
+accepted" and "editing the card changes the route", were deleted rather than quietly left
+failing. `tests/e2e/surfaces.spec.ts` carries a note saying so at the point they used to
+be. The coverage-view tests in that file still run.
+
+If the confirmation step comes back, the thing to rebuild is not the old card. It is a
+compact strip that shows only the fields the model actually filled in, with the full form
+behind a control, in a container that scrolls.
 
 ## 3. Extraction, measured against the real model
 

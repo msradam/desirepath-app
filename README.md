@@ -17,14 +17,17 @@ became one more cost term. The router did not learn a new concept. It learned a
 new column. The full argument is in [THESIS.md](THESIS.md).
 
 Two screens. The coverage notice measures the claim; the routing view plans a
-walk from a sentence, with a form you confirm before anything routes.
+walk from a typed sentence. What the model read out of that sentence is
+disclosed above the route, because a small model gets it wrong often and the
+person has to be able to see what it decided on their behalf.
+
 Everything on the query path runs on the machine you open it on: the model, the
 routing, the graph and the geocoder. The sentence and the destination do not
 reach the internet.
 
 ![The quarter-mile claim against what Brownsville can actually reach](docs/demo/coverage-brownsville.png)
 *Brownsville. The quarter mile counts 12.8% of the sidewalk network as covered.
-Walking it in the heat reaches 3.3%. The orange is pavement the claim counts and
+Walking it in the heat reaches 3.3%. The yellow is pavement the claim counts and
 a heat-burdened resident cannot walk to, from two cooling elements serving
 2.86 km².*
 
@@ -34,8 +37,9 @@ showers and no misting stations. There is nothing to be a quarter mile away
 from.*
 
 ![A heat-aware route through Brownsville](docs/demo/route-heat-aware.png)
-*The routing view. A model filled in the form, the person corrected it, and only
-then did anything route. `routed via osm_walk_graph · 25 min · no network`.*
+*The routing view. The block above the route says what the model read from the
+sentence and what it cost: the conditions it picked up, and whether heat was
+priced. `routed via osm_walk_graph · 25 min · no network`.*
 
 **Live demo:** https://msradam-ariadne-nyc.static.hf.space (Chrome or Edge with
 WebGPU; first visit downloads the 1B-parameter model into IndexedDB, about 30

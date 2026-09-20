@@ -66,7 +66,7 @@
     grid-template-rows: auto minmax(0, 1fr);
     height: 100%;
     min-height: 0;
-    background: var(--paper);
+    background: var(--slate);
   }
 
   .plate {
@@ -75,8 +75,9 @@
     align-items: center;
     gap: 18px;
     padding: 10px 24px;
-    background: var(--ink);
-    color: var(--paper);
+    background: var(--slate-2);
+    color: var(--bone);
+    border-bottom: var(--rule-hair) solid var(--subtle);
   }
 
   .wordmark {
@@ -88,11 +89,12 @@
     letter-spacing: -0.02em;
     text-transform: uppercase;
     text-decoration: none;
-    color: var(--paper);
+    color: var(--bone);
   }
-  /* The second half of the name in barricade orange, which is the only place
-     the wordmark uses it: the name is a route worn across something. */
-  .wordmark span { color: var(--barricade); }
+  /* The second half of the name in the high-visibility yellow, which is the
+     only place the wordmark uses it: the name is a route worn across
+     something. */
+  .wordmark span { color: var(--hivis); }
   .wordmark:hover { text-decoration: underline; text-underline-offset: 4px; }
 
   .subject {
@@ -101,7 +103,7 @@
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--subtle);
+    color: var(--muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -118,20 +120,20 @@
     letter-spacing: 0.02em;
     min-height: 44px;
     padding: 9px 12px;
-    color: var(--paper);
+    color: var(--bone);
     background: transparent;
     border: 2px solid var(--subtle);
     border-radius: 0;
     cursor: pointer;
   }
-  button:hover { border-color: var(--paper); }
-  button:focus-visible { outline: 3px solid var(--barricade); outline-offset: 2px; }
-  /* The selected tab is not only orange: it is filled, and it is the only tab
-     whose ink is dark. Colour never carries this on its own. */
+  button:hover { border-color: var(--bone); }
+  button:focus-visible { outline: 3px solid var(--hivis); outline-offset: 2px; }
+  /* The selected tab is not only yellow: it is filled, and it is the only tab
+     whose type is dark. Colour never carries this on its own. */
   button.on {
-    background: var(--barricade);
-    border-color: var(--barricade);
-    color: #121212;
+    background: var(--hivis);
+    border-color: var(--hivis);
+    color: var(--slate);
   }
 
   @media (max-width: 62rem) {
