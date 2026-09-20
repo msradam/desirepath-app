@@ -104,16 +104,24 @@ either place. **Check this first if a deployed Space cannot load a model.**
 
 ### What is excluded from the Space
 
-`build/` is 232 MB, most of which is pipeline intermediates that nothing fetches
-at runtime. The deploy excludes them and lands at 60 MB:
+`build/` is over 300 MB, most of which is pipeline intermediates that nothing fetches
+at runtime. The deploy excludes them and lands at 83 MB:
 
 ```bash
 rsync -a \
   --exclude 'output/osw' \
   --exclude 'output/thermal' \
   --exclude 'output/nyc-pedestrian.bin' \
+  --exclude 'output/nyc-addresses.json' \
+  --exclude 'output/fetch_summary.json' \
   app/build/ /tmp/desirepath-hf/
 ```
+
+`nyc-addresses.json` is the 102 MB raw Overpass dump that
+`build_address_index.py` consumes. Only its 24 MB output, `nyc-streets.json`,
+is fetched at runtime. `app/static/output` is a symlink to `data/`, so anything
+the pipeline writes there lands in `build/` whether the app wants it or not;
+check the size of a staged deploy rather than trusting the exclude list.
 
 Runtime fetches only these under `/output/`: `nyc-pedestrian-thermal.bin`,
 `nyc-comfort.json`, `nyc-pois.json`, `nyc-streets.json`, `ada-stops.json`,
@@ -130,6 +138,7 @@ grep -rhno "/output/[A-Za-z0-9_./${}-]*" app/src --include='*.ts' --include='*.s
 cd app && npm run build
 rsync -a --delete --exclude '.git' --exclude '.gitattributes' --exclude 'README.md' \
   --exclude 'output/osw' --exclude 'output/thermal' --exclude 'output/nyc-pedestrian.bin' \
+  --exclude 'output/nyc-addresses.json' --exclude 'output/fetch_summary.json' \
   build/ /tmp/desirepath-hf/
 cd /tmp/desirepath-hf && hf upload msradam/desirepath . --repo-type space \
   --commit-message "deploy"
