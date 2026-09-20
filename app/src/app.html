@@ -4,19 +4,34 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0d1117" />
+    <meta name="theme-color" content="#10263F" />
     <title>DesirePath. What the quarter mile delivers</title>
     <meta
       name="description"
-      content="Accessible pedestrian and transit routing for New York City. Supports wheelchair, slow walker, low vision, and stroller profiles. On-device AI, no data sent to servers."
+      content="What New York's quarter-mile cooling promise actually delivers on foot. Heat- and accessibility-aware pedestrian routing on the OpenSidewalks graph, with mean radiant temperature priced into every metre. Runs on your device."
     />
     %sveltekit.head%
     <!-- Enables SharedArrayBuffer (required for WebGPU/WebLLM) on hosts that
          don't send COEP/COOP headers natively. Registers a service worker that
          re-serves all responses with those headers; reloads once on first visit. -->
     <script src="%sveltekit.assets%/coi-serviceworker.min.js"></script>
-    <!-- HF Spaces embeds at /index.html; rewrite to / before SvelteKit boots -->
-    <script>if(location.pathname==='/index.html')history.replaceState(null,'','/');</script>
+    <!-- HF Spaces serves this at /index.html; rewrite to / before SvelteKit
+         boots, KEEPING the query and hash. Dropping them here is what silently
+         ate ?llm=ollama on the deployed Space: the host redirects
+         /?llm=ollama to /index.html?llm=ollama, and this line then threw the
+         search away before any app code could read it. -->
+    <script>
+      (function () {
+        try {
+          var q = new URLSearchParams(location.search).get('llm');
+          if (q === 'default') localStorage.removeItem('desirepath:llm');
+          else if (q) localStorage.setItem('desirepath:llm', q);
+        } catch (e) { /* storage blocked; the URL still works for this load */ }
+        if (location.pathname === '/index.html') {
+          history.replaceState(null, '', '/' + location.search + location.hash);
+        }
+      })();
+    </script>
   </head>
   <body data-sveltekit-preload-data="hover">
     <div style="display: contents">%sveltekit.body%</div>

@@ -8,6 +8,7 @@
   import { MinotorAdapter } from '$lib/adapters/transit-router';
   import { WebLLMGraniteAdapter } from '$lib/adapters/llm';
   import { OllamaAdapter } from '$lib/adapters/llm-ollama';
+  import type { LLMAdapter } from '$lib/adapters/llm';
   import { WeatherAdapter } from '$lib/adapters/feed-weather';
   import { MTAOutagesAdapter } from '$lib/adapters/feed-mta-outages';
   import { LocalSpeechSynthesisAdapter } from '$lib/adapters/tts';
@@ -63,14 +64,50 @@
    * `?llm=webgpu` and `?llm=ollama` override, so either can be demonstrated
    * from either place.
    */
-  const llmChoice =
-    typeof location !== 'undefined'
-      ? new URLSearchParams(location.search).get('llm')
-      : null;
-  const useOllama = llmChoice === 'ollama' || (llmChoice !== 'webgpu' && !import.meta.env.PROD);
-  const llm = useOllama
-    ? new OllamaAdapter(undefined, undefined, privacyLog)
-    : new WebLLMGraniteAdapter(privacyLog);
+  /**
+   * Which engine the URL asked for, if any, remembered once it has been asked.
+   *
+   * The query string does not survive on the deployed Space: the static host
+   * redirects `/?llm=ollama` to `/index.html?llm=ollama`, and SvelteKit's
+   * client router then normalises the path back to `/` and drops the search
+   * with it. So the answer is also stashed, and the hash is accepted, which
+   * survives both. Clearing it is `?llm=default`.
+   */
+  function readLlmChoice(): string | null {
+    if (typeof location === 'undefined') return null;
+    const fromHash = new URLSearchParams(location.hash.replace(/^#/, '')).get('llm');
+    const asked = new URLSearchParams(location.search).get('llm') ?? fromHash;
+    try {
+      if (asked === 'default') { localStorage.removeItem('desirepath:llm'); return null; }
+      if (asked) { localStorage.setItem('desirepath:llm', asked); return asked; }
+      return localStorage.getItem('desirepath:llm');
+    } catch {
+      // Private browsing, or storage blocked. The URL still works for this load.
+      return asked;
+    }
+  }
+
+  const llmChoice = readLlmChoice();
+
+  /**
+   * Ollama first, WebGPU as the fallback, unless the URL pinned one.
+   *
+   * The deployed Space runs Ollama itself and proxies it on this origin, so
+   * the usual case is that a model is already loaded and the first query is
+   * fast. When nothing answers there, the browser path still works and costs
+   * the visitor a one-time download instead.
+   *
+   * These are not the same privacy claim and the interface says which is
+   * running: WebGPU keeps the sentence in the page, Ollama sends it to
+   * whatever is serving /ollama.
+   */
+  let llm = $state<LLMAdapter>(
+    llmChoice === 'webgpu'
+      ? new WebLLMGraniteAdapter(privacyLog)
+      : new OllamaAdapter(undefined, undefined, privacyLog),
+  );
+  /** Set once the boot sequence knows which engine actually answered. */
+  let engineNote = $state('');
   const weatherAdapter = new WeatherAdapter(privacyLog);
   const mtaOutages = new MTAOutagesAdapter(privacyLog);
   const tts = new LocalSpeechSynthesisAdapter();
@@ -365,15 +402,28 @@
     // ── Step 5: WebGPU probe + local model load ───────────────────────────
     loadPhase.set('model_probing');
     loadMessage.set('Checking the local model…');
-    const probe = await llm.probeWebGPU();
+    let probe = await llm.probeWebGPU();
+    if (!probe.ok && llm instanceof OllamaAdapter && llmChoice !== 'ollama') {
+      // No Ollama here. Fall back to the model in the browser rather than
+      // telling the visitor the router is unavailable.
+      loadMessage.set('No model server here. Loading the model in your browser…');
+      llm = new WebLLMGraniteAdapter(privacyLog);
+      probe = await llm.probeWebGPU();
+    }
     if (!probe.ok) {
       gpuError = probe.info;
       loadPhase.set('model_error');
-      loadMessage.set(`Local model unavailable: ${probe.info}`);
+      loadMessage.set(`Model unavailable: ${probe.info}`);
       booted = true;
       querySubmitFn.set(handleSend);
       return;
     }
+    engineNote =
+      llm instanceof OllamaAdapter && llm.isRemote
+        ? 'The model runs on the server. Your sentence is sent to it.'
+        : llm instanceof OllamaAdapter
+          ? 'The model runs on this machine.'
+          : 'The model runs in your browser. Your sentence stays in the page.';
     loadMessage.set(`${probe.info}. Loading Granite 4…`);
 
     loadPhase.set('model_loading');
@@ -509,6 +559,9 @@
           </dl>
           {#if inferred.corrected}
             <p class="corrected">{inferred.corrected}</p>
+          {/if}
+          {#if engineNote}
+            <p class="engine">{engineNote}</p>
           {/if}
           <p class="warn">
             The route below was planned on these values. If the model missed something you
@@ -710,6 +763,16 @@
     font-weight: 600;
     color: var(--slate);
     background: var(--hivis);
+  }
+
+  .inferred .engine {
+    margin-top: 10px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
   }
 
   .inferred .warn {

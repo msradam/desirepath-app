@@ -23,8 +23,17 @@ import type { ChatMessage } from '../domain/narration';
 import type { CompletionOpts, LLMAdapter, LLMStats } from './llm';
 import { UnconstrainedDecodeError } from './llm';
 
-/** Default host. Overridable so the CLI harness and the app share this file. */
+/** Ollama on the same machine, for local development and the CLI harness. */
 export const OLLAMA_HOST = 'http://localhost:11434';
+
+/**
+ * Ollama proxied on this origin, which is how the deployed Space serves it.
+ *
+ * Same-origin removes two problems at once: no CORS to negotiate, and no
+ * mixed-content question from an HTTPS page. The server that answers this path
+ * is deploy/space/server.mjs.
+ */
+export const OLLAMA_PROXY = '/ollama';
 
 /**
  * Granite 4 micro, the same family as the WebGPU path's Granite 4.0 1B.
@@ -49,12 +58,34 @@ export class OllamaAdapter implements LLMAdapter {
   private _lastStats: LLMStats | null = null;
   private _lastConstrained = false;
 
+  /** Resolved by the probe. Empty until then. */
+  private host = '';
+
   constructor(
-    private host: string = OLLAMA_HOST,
+    /** Pin a host explicitly. Omit to let the probe find one. */
+    private hostOverride?: string,
     private model: string = OLLAMA_MODEL,
     /** Optional so the CLI harness can construct this outside the app. */
     private log?: { z2(url: string, description: string): void },
   ) {}
+
+  /**
+   * Where to look for a model, in order.
+   *
+   * On the Space the proxy answers and localhost does not. On a laptop it is
+   * the other way round. Trying both means one build works in both places and
+   * neither needs to know which one it is.
+   */
+  private candidates(): string[] {
+    if (this.hostOverride) return [this.hostOverride];
+    if (typeof window === 'undefined') return [OLLAMA_HOST];
+    return [OLLAMA_PROXY, OLLAMA_HOST];
+  }
+
+  /** True when the model is answering on this origin rather than on localhost. */
+  get isRemote(): boolean {
+    return this.host === OLLAMA_PROXY;
+  }
 
   get ready(): boolean { return this._ready; }
   getLastStats(): LLMStats | null { return this._lastStats; }
@@ -66,18 +97,27 @@ export class OllamaAdapter implements LLMAdapter {
    * Ollama is up and has the model, which is the same question.
    */
   async probeWebGPU(): Promise<{ ok: boolean; info: string }> {
-    try {
-      const res = await fetch(`${this.host}/api/tags`);
-      if (!res.ok) return { ok: false, info: `Ollama answered ${res.status}` };
-      const body = (await res.json()) as { models?: Array<{ name: string }> };
-      const names = (body.models ?? []).map((m) => m.name);
-      if (!names.includes(this.model)) {
-        return { ok: false, info: `Ollama is up but ${this.model} is not pulled` };
+    const tried: string[] = [];
+    for (const host of this.candidates()) {
+      try {
+        const res = await fetch(`${host}/api/tags`);
+        if (!res.ok) { tried.push(`${host} answered ${res.status}`); continue; }
+        const body = (await res.json()) as { models?: Array<{ name: string }> };
+        const names = (body.models ?? []).map((m) => m.name);
+        if (!names.includes(this.model)) {
+          tried.push(`${host} is up but ${this.model} is not pulled`);
+          continue;
+        }
+        this.host = host;
+        return {
+          ok: true,
+          info: host === OLLAMA_PROXY ? `${this.model}, on the server` : `${this.model}, on this machine`,
+        };
+      } catch (e) {
+        tried.push(`${host}: ${(e as Error).message}`);
       }
-      return { ok: true, info: `Ollama ${this.model}` };
-    } catch (e) {
-      return { ok: false, info: `Ollama unreachable at ${this.host}: ${(e as Error).message}` };
     }
+    return { ok: false, info: `no Ollama found. ${tried.join('; ')}` };
   }
 
   /**
@@ -88,13 +128,20 @@ export class OllamaAdapter implements LLMAdapter {
    * that is not already pulled fails the probe above before this runs.
    */
   async load(onProgress: (msg: string) => void): Promise<void> {
-    onProgress(`Loading ${this.model} in Ollama…`);
-    // Named precisely. The sentence a person types does leave the page, and it
-    // goes to a process on the same machine. That is a different claim from
-    // "nothing leaves the browser" and the log should not blur them.
+    if (!this.host) {
+      const probe = await this.probeWebGPU();
+      if (!probe.ok) throw new Error(probe.info);
+    }
+    onProgress(`Loading ${this.model}…`);
+    // Named precisely, and differently depending on where the model actually
+    // is. "Nothing leaves the browser" is true of the WebGPU path and false of
+    // both of these; the log should not blur that, and the two are not the
+    // same claim as each other either.
     this.log?.z2(
       `${this.host}/api/chat`,
-      'The typed sentence, to Granite 4 running in Ollama on this machine. Not the internet.',
+      this.isRemote
+        ? 'The typed sentence, to Granite 4 running on the server that hosts this app.'
+        : 'The typed sentence, to Granite 4 in Ollama on this machine. Not the internet.',
     );
     const res = await fetch(`${this.host}/api/generate`, {
       method: 'POST',
@@ -108,6 +155,10 @@ export class OllamaAdapter implements LLMAdapter {
   }
 
   async *completion(messages: ChatMessage[], opts?: CompletionOpts): AsyncIterable<string> {
+    if (!this.host) {
+      const probe = await this.probeWebGPU();
+      if (!probe.ok) throw new UnconstrainedDecodeError(probe.info);
+    }
     const request: Record<string, unknown> = {
       model: this.model,
       messages,
