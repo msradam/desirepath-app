@@ -67,7 +67,7 @@ function buildSystemPrompt(weather: WeatherContext | null): string {
       `${weather.code_blue ? 'Cold advisory active. ' : ''}`
     : '';
   return (
-    'You are Ariadne, an accessibility-aware pedestrian routing assistant for all five boroughs of NYC. ' +
+    'You are DesirePath, an accessibility- and heat-aware pedestrian routing assistant for all five boroughs of NYC. ' +
     'Pick ONE tool per user message. ' +
     'Use plan_route when the user names both origin AND destination. ' +
     'Use find_reachable_resources ONLY when the user explicitly asks what they can reach within a stated time budget (e.g., "in 15 minutes", "within 20 min", "what can I reach in 10 min"). ' +

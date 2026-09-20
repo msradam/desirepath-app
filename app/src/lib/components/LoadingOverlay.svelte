@@ -55,7 +55,7 @@
             style="opacity: {i < fillFraction * 6 ? 1 : 0.12}; transition: opacity 400ms ease"
           />
         {/each}
-        <!-- Ariadne thread -->
+        <!-- The desire path: the worn line across the boroughs -->
         <path
           d="M 1400 400 Q 1350 700 1320 1000 T 1280 1400 Q 1250 1700 1300 2000 Q 1350 2100 1400 2050"
           stroke="var(--accent)"
@@ -120,7 +120,7 @@
   <!-- Tip -->
   <div class="tip" aria-live="off">
     <span class="tip-lead">Did you know · </span>
-    Ariadne uses crowdsourced curb-cut and elevator data from
+    DesirePath routes on the OpenSidewalks graph: curb cuts, crossings and elevators from
     <strong>OpenSidewalks</strong> alongside official NYC accessibility surveys.
   </div>
 </div>

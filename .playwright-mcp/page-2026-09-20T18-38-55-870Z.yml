@@ -1,0 +1,55 @@
+- generic [ref=f51e2]:
+  - link "Skip to main content" [ref=f51e3] [cursor=pointer]:
+    - /url: "#content"
+  - main [ref=f51e4]:
+    - generic [ref=f51e5]:
+      - generic "Query record" [ref=f51e6]:
+        - generic [ref=f51e7]:
+          - link "DesirePath" [ref=f51e8] [cursor=pointer]:
+            - /url: /
+          - link "Quarter-mile coverage →" [ref=f51e9] [cursor=pointer]:
+            - /url: /coverage
+        - status "Application loading" [ref=f51e10]:
+          - generic [ref=f51e17]:
+            - generic [ref=f51e18]: Building your route map
+            - generic [ref=f51e19]: Loading the five-borough walking graph
+            - generic [ref=f51e20]: One-time download. Everything runs in your browser after this. No servers, no tracking.
+          - generic [ref=f51e21]:
+            - progressbar "Loading progress" [ref=f51e22]
+            - generic [ref=f51e24]:
+              - generic [ref=f51e25]: 3.0 / 30 MB
+              - generic [ref=f51e26]: bx ✓
+          - list "Loading steps" [ref=f51e27]:
+            - listitem [ref=f51e28]:
+              - generic [ref=f51e30]: Routing graph
+              - generic [ref=f51e31]: …
+            - listitem [ref=f51e32]:
+              - generic [ref=f51e34]: Transit data
+              - generic [ref=f51e35]: "-"
+            - listitem [ref=f51e36]:
+              - generic [ref=f51e38]: Language model
+              - generic [ref=f51e39]: "-"
+          - generic [ref=f51e40]:
+            - text: "Did you know · DesirePath routes on the OpenSidewalks graph: curb cuts, crossings and elevators from"
+            - strong [ref=f51e41]: OpenSidewalks
+            - text: alongside official NYC accessibility surveys.
+      - generic [ref=f51e43]:
+        - generic [ref=f51e44]:
+          - application "Route map. Use the route summary below for accessible route details." [ref=f51e45]
+          - generic "Map controls" [ref=f51e46]:
+            - generic [ref=f51e47]:
+              - button "Zoom in" [ref=f51e48] [cursor=pointer]: +
+              - button "Zoom out" [ref=f51e49] [cursor=pointer]: −
+              - button "Center on New York City" [ref=f51e50] [cursor=pointer]: ⌖
+        - generic [ref=f51e52]:
+          - textbox "Search accessible routes in New York City" [disabled] [ref=f51e57]:
+            - /placeholder: Search accessible routes…
+          - generic [aria-hidden] [ref=f51e58]: ⌘K
+        - generic [aria-hidden]:
+          - generic: SURVEYED
+          - generic: SEP 20, 2026 · 14:38 EDT
+        - generic [aria-hidden]:
+          - generic: LEGEND
+          - generic: Cooling center
+          - generic: Step-free station
+          - generic: Active route

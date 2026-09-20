@@ -1,0 +1,52 @@
+- generic [ref=f39e2]:
+  - link "Skip to main content" [ref=f39e3] [cursor=pointer]:
+    - /url: "#content"
+  - main [ref=f39e4]:
+    - generic [ref=f39e5]:
+      - generic [ref=f39e6]:
+        - link "DesirePath" [ref=f39e7] [cursor=pointer]:
+          - /url: /
+        - paragraph [ref=f39e8]: Quarter-mile coverage, measured on foot
+        - navigation "Neighbourhood" [ref=f39e9]:
+          - button "Brownsville" [ref=f39e10] [cursor=pointer]
+          - button "Mott Haven" [ref=f39e11] [cursor=pointer]
+          - button "Tremont" [ref=f39e12] [cursor=pointer]
+          - button "East Harlem N" [ref=f39e13] [cursor=pointer]
+          - button "North Corona" [ref=f39e14] [cursor=pointer]
+      - generic [ref=f39e15]:
+        - generic [ref=f39e16]:
+          - generic [ref=f39e17]:
+            - paragraph [ref=f39e18]: “no New Yorker in the most heat-burdened communities is more than 1/4 mile away from an outdoor cooling element”
+            - paragraph [ref=f39e19]: NYC DEP, Mayor de Blasio Expands Cool It! NYC, 24 June 2020
+          - generic [ref=f39e20]:
+            - paragraph [ref=f39e21]: "9.4"
+            - paragraph [ref=f39e22]: points overstated
+            - paragraph [ref=f39e23]: Brownsville pavement the quarter mile counts and heat takes away
+        - generic [ref=f39e24]:
+          - application "Map of Brownsville. Every figure it shows is written out below it." [ref=f39e25]
+          - list [ref=f39e26]:
+            - listitem [ref=f39e27]: Counted as covered
+            - listitem [ref=f39e29]: Counted, unreachable in heat
+            - listitem [ref=f39e31]: Reachable in heat
+            - listitem [ref=f39e33]: Cooling element, quarter mile
+        - generic [ref=f39e35]:
+          - list [ref=f39e36]:
+            - listitem [ref=f39e37]:
+              - generic [ref=f39e39]: 12.8%
+              - generic [ref=f39e40]: As the crow flies
+              - generic [ref=f39e41]: what the quarter mile counts
+              - generic [ref=f39e42]: 0.37 km²
+            - listitem [ref=f39e43]:
+              - generic [ref=f39e45]: 7.9%
+              - generic [ref=f39e46]: Walking the network
+              - generic [ref=f39e47]: along real sidewalks and crossings
+              - generic [ref=f39e48]: "-4.9 pts"
+            - listitem [ref=f39e49]:
+              - generic [ref=f39e51]: 3.3%
+              - generic [ref=f39e52]: Walking it in the heat
+              - generic [ref=f39e53]: sun priced into every metre
+              - generic [ref=f39e54]: "-9.4 pts"
+          - generic [ref=f39e55]:
+            - paragraph [ref=f39e56]: "2"
+            - paragraph [ref=f39e57]: cooling elements for 2.86 km² of Brownsville, Brooklyn. Spray showers and misting stations, counted without drinking fountains.
+            - paragraph [ref=f39e58]: Radiant temperature here is a proxy, not SOLWEIG. The City also opens hydrant spray caps during heat advisories; those are not in the published dataset and are not counted.

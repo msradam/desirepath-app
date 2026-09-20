@@ -1,0 +1,50 @@
+- generic [ref=f40e2]:
+  - link "Skip to main content" [ref=f40e3] [cursor=pointer]:
+    - /url: "#content"
+  - main [ref=f40e4]:
+    - generic [ref=f40e5]:
+      - generic "Query record" [ref=f40e6]:
+        - status "Application loading" [ref=f40e7]:
+          - generic [ref=f40e27]:
+            - generic [ref=f40e28]: Building your route map
+            - generic [ref=f40e29]: Loading the five-borough walking graph
+            - generic [ref=f40e30]: One-time download. Everything runs in your browser after this. No servers, no tracking.
+          - generic [ref=f40e31]:
+            - progressbar "Loading progress" [ref=f40e32]
+            - generic [ref=f40e34]:
+              - generic [ref=f40e35]: 3.0 / 30 MB
+              - generic [ref=f40e36]: bx ✓
+          - list "Loading steps" [ref=f40e37]:
+            - listitem [ref=f40e38]:
+              - generic [ref=f40e40]: Routing graph
+              - generic [ref=f40e41]: …
+            - listitem [ref=f40e42]:
+              - generic [ref=f40e44]: Transit data
+              - generic [ref=f40e45]: "-"
+            - listitem [ref=f40e46]:
+              - generic [ref=f40e48]: Language model
+              - generic [ref=f40e49]: "-"
+          - generic [ref=f40e50]:
+            - text: Did you know · Ariadne uses crowdsourced curb-cut and elevator data from
+            - strong [ref=f40e51]: OpenSidewalks
+            - text: alongside official NYC accessibility surveys.
+      - generic [ref=f40e53]:
+        - generic [ref=f40e54]:
+          - application "Route map. Use the route summary below for accessible route details." [ref=f40e55]
+          - generic "Map controls" [ref=f40e56]:
+            - generic [ref=f40e57]:
+              - button "Zoom in" [ref=f40e58] [cursor=pointer]: +
+              - button "Zoom out" [ref=f40e59] [cursor=pointer]: −
+              - button "Center on New York City" [ref=f40e60] [cursor=pointer]: ⌖
+        - generic [ref=f40e62]:
+          - textbox "Search accessible routes in New York City" [disabled] [ref=f40e67]:
+            - /placeholder: Search accessible routes…
+          - generic [aria-hidden] [ref=f40e68]: ⌘K
+        - generic [aria-hidden]:
+          - generic: SURVEYED
+          - generic: SEP 20, 2026 · 14:32 EDT
+        - generic [aria-hidden]:
+          - generic: LEGEND
+          - generic: Cooling center
+          - generic: Step-free station
+          - generic: Active route

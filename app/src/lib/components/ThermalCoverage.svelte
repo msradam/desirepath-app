@@ -1,7 +1,17 @@
 <script lang="ts">
   /**
-   * Reachability comparison view. Shows the City's quarter-mile claim against
-   * the pavement a heat-burdened pedestrian can actually walk to.
+   * The coverage view. One notice, full bleed.
+   *
+   * The City claims no New Yorker in its most heat-burdened communities is more
+   * than a quarter mile from an outdoor cooling element. That quarter mile is a
+   * straight line. This measures the same claim along the sidewalk a person
+   * actually has to walk, with heat priced into every metre, and shows the
+   * pavement the claim counts and nobody can reach.
+   *
+   * The shortfall is the artifact, so the map gets the screen and the reading
+   * sits on the sign's furniture around it. Every fill that carries meaning
+   * carries a second channel as well, a dash pattern or a hatch, because this
+   * is projected into a bright room where colour alone does not survive.
    */
 
   type Share = { nodes: number; share: number; km2: number };
@@ -56,20 +66,45 @@
     return (r.radius.share - r.thermal.share).toFixed(1);
   }
 
+  /**
+   * The three readings, worst last.
+   *
+   * Each carries what it is down from, not only its own value: a percentage on
+   * its own invites the reader to decide for themselves whether it is bad.
+   */
   function shareRows(r: Reading) {
     return [
-      { label: 'as the crow flies', share: r.radius.share, km2: r.radius.km2, swatch: 'claimed' },
-      { label: 'walking the network', share: r.network.share, km2: r.network.km2, swatch: 'network' },
-      { label: 'walking it in the heat', share: r.thermal.share, km2: r.thermal.km2, swatch: 'reachable' }
+      {
+        key: 'claimed',
+        label: 'As the crow flies',
+        sub: 'what the quarter mile counts',
+        share: r.radius.share,
+        km2: r.radius.km2,
+        delta: null as string | null,
+      },
+      {
+        key: 'network',
+        label: 'Walking the network',
+        sub: 'along real sidewalks and crossings',
+        share: r.network.share,
+        km2: r.network.km2,
+        delta: (r.network.share - r.radius.share).toFixed(1),
+      },
+      {
+        key: 'reachable',
+        label: 'Walking it in the heat',
+        sub: 'sun priced into every metre',
+        share: r.thermal.share,
+        km2: r.thermal.km2,
+        delta: (r.thermal.share - r.radius.share).toFixed(1),
+      },
     ];
   }
 
   // ── Map ───────────────────────────────────────────────────────────────────
-  // MapLibre paint properties cannot read CSS variables, and its colour parser
-  // does not accept oklch(), which every token here is written in. Painting the
-  // token onto a canvas and reading the pixel back hands the conversion to the
+  // MapLibre paint properties cannot read CSS variables. Painting the token
+  // onto a canvas and reading the pixel back hands the conversion to the
   // browser, so the layers stay in the design system and follow the theme.
-  // The fallback survives a token that fails to parse.
   let probe: CanvasRenderingContext2D | null = null;
 
   function token(name: string, fallback: string): string {
@@ -84,13 +119,34 @@
 
   function palette() {
     return {
-      claimed: token('--muted', '#6b6f76'),
-      shortfall: token('--error', '#b5361f'),
-      reachable: token('--primary', '#1b4a3c'),
-      ring: token('--ink-2', '#3b4250'),
-      element: token('--poi-cooling', '#9c4a20'),
-      elementEdge: token('--surface', '#ffffff')
+      claimed: token('--ink', '#121212'),
+      shortfall: token('--barricade', '#FF5A00'),
+      reachable: token('--signal', '#0B3CC1'),
+      paper: token('--paper', '#F2EFE6'),
     };
+  }
+
+  /**
+   * The element marker, drawn rather than picked from a circle.
+   *
+   * A square with a hole in it is the municipal site marker, and it is the one
+   * shape on the map that is neither a route nor a boundary, so it should not
+   * borrow either of their vocabularies.
+   */
+  function markerImage(ink: string, paper: string): ImageData {
+    const s = 22;
+    const c = document.createElement('canvas');
+    c.width = c.height = s;
+    const g = c.getContext('2d')!;
+    g.fillStyle = paper;
+    g.fillRect(0, 0, s, s);
+    g.fillStyle = ink;
+    g.fillRect(0, 0, s, 4);
+    g.fillRect(0, s - 4, s, 4);
+    g.fillRect(0, 0, 4, s);
+    g.fillRect(s - 4, 0, 4, s);
+    g.fillRect(7, 7, s - 14, s - 14);
+    return g.getImageData(0, 0, s, s);
   }
 
   /** Outer rings of a Polygon or MultiPolygon, for fitting and for drawing. */
@@ -112,8 +168,8 @@
       features: (geom ?? []).map((coordinates) => ({
         type: 'Feature',
         geometry: { type: 'LineString', coordinates },
-        properties: {}
-      }))
+        properties: {},
+      })),
     };
   }
 
@@ -123,8 +179,8 @@
       features: els.map((e) => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [e.lon, e.lat] },
-        properties: { name: e.name, kind: e.kind }
-      }))
+        properties: { name: e.name, kind: e.kind },
+      })),
     };
   }
 
@@ -142,9 +198,9 @@
         return {
           type: 'Feature',
           geometry: { type: 'Polygon', coordinates: [coords] },
-          properties: {}
+          properties: {},
         };
-      })
+      }),
     };
   }
 
@@ -156,6 +212,7 @@
     return (node: HTMLElement) => {
       let map: import('maplibre-gl').Map | null = null;
       let observer: MutationObserver | null = null;
+      let resizer: ResizeObserver | null = null;
       let dead = false;
 
       (async () => {
@@ -170,19 +227,27 @@
         const claimed = lines(r.geometry.claimed);
         const first = r.geometry.claimed?.[0]?.[0] ?? [els[0]?.lon ?? -73.9, els[0]?.lat ?? 40.66];
         // Fit to the whole neighbourhood, not to the covered clusters. The
-        // argument is how little of Brownsville those clusters are; fitting to
-        // them crops away the denominator and makes the coverage look ample.
+        // argument is how little of the neighbourhood those clusters are;
+        // fitting to them crops away the denominator.
         const bounds = new ml.LngLatBounds(first, first);
         for (const ring of boundaryRings(d.boundary)) for (const c of ring) bounds.extend(c);
         for (const seg of r.geometry.claimed ?? []) for (const c of seg) bounds.extend(c);
         for (const e of els) bounds.extend([e.lon, e.lat]);
 
-        map = new ml.Map({ container: node, style: TILE_URL, center: first, zoom: 13 });
+        map = new ml.Map({
+          container: node,
+          style: TILE_URL,
+          center: first,
+          zoom: 13,
+          attributionControl: { compact: true },
+        });
         await new Promise<void>((res) => map!.on('load', () => res()));
         if (dead || !map) return;
 
         const c = palette();
         const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        map.addImage('site', markerImage(c.claimed, c.paper));
 
         map.addSource('boundary', { type: 'geojson', data: boundaryFC(d.boundary) });
         map.addSource('claimed', { type: 'geojson', data: claimed });
@@ -198,63 +263,87 @@
           id: 'boundary-line',
           type: 'line',
           source: 'boundary',
-          layout: { 'line-join': 'round' },
-          paint: { 'line-color': c.ring, 'line-width': 2, 'line-opacity': 0.85 }
+          layout: { 'line-join': 'miter' },
+          paint: { 'line-color': c.claimed, 'line-width': 3 },
         });
+        // Claimed pavement: a hairline, dotted. Colour is the third channel
+        // here, never the only one.
         map.addLayer({
           id: 'claimed-line',
           type: 'line',
           source: 'claimed',
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': c.claimed, 'line-width': 1, 'line-opacity': 0.9 }
+          layout: { 'line-join': 'miter', 'line-cap': 'butt' },
+          paint: {
+            'line-color': c.claimed,
+            'line-width': 1.25,
+            'line-dasharray': [1, 2],
+            'line-opacity': 0.7,
+          },
         });
+        // The figure. Barricade orange, and chunky dashes so it reads as
+        // hatched work area rather than as a route.
         map.addLayer({
           id: 'shortfall-line',
           type: 'line',
           source: 'shortfall',
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          layout: { 'line-join': 'miter', 'line-cap': 'butt' },
           paint: {
             'line-color': c.shortfall,
-            'line-width': 7,
+            'line-width': 8,
+            'line-dasharray': [1.6, 0.9],
             'line-opacity': reduced ? 1 : 0,
-            'line-opacity-transition': { duration: 420, delay: 0 }
-          }
+            'line-opacity-transition': { duration: 420, delay: 0 },
+          },
         });
         map.addLayer({
           id: 'reachable-line',
           type: 'line',
           source: 'reachable',
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': c.reachable, 'line-width': 3.5, 'line-opacity': 1 }
+          layout: { 'line-join': 'miter', 'line-cap': 'butt' },
+          paint: { 'line-color': c.reachable, 'line-width': 4, 'line-opacity': 1 },
         });
         map.addLayer({
           id: 'ring-line',
           type: 'line',
           source: 'rings',
           paint: {
-            'line-color': c.ring,
-            'line-width': 1.5,
-            'line-dasharray': [4, 3],
-            'line-opacity': 0.85
-          }
+            'line-color': c.claimed,
+            'line-width': 2,
+            'line-dasharray': [5, 4],
+            'line-opacity': 0.9,
+          },
         });
         map.addLayer({
           id: 'element-dot',
-          type: 'circle',
+          type: 'symbol',
           source: 'elements',
-          paint: {
-            'circle-radius': 7,
-            'circle-color': c.element,
-            'circle-stroke-width': 2.5,
-            'circle-stroke-color': c.elementEdge,
-            'circle-opacity': 1
-          }
+          layout: { 'icon-image': 'site', 'icon-allow-overlap': true, 'icon-size': 1 },
         });
 
-        map.fitBounds(bounds, { padding: 56, maxZoom: 15, animate: false });
+        // Fit after a resize, not before one. The container is a grid track
+        // that has no height until layout settles, and fitBounds against a
+        // zero-height viewport silently lands on the whole tri-state area.
+        //
+        // The padding scales with the container because a fixed 64px inset is
+        // most of the height on a phone, which leaves fitBounds nothing to
+        // work with and lands the neighbourhood in a corner.
+        const fit = () => {
+          if (!map) return;
+          map.resize();
+          const { clientWidth: w, clientHeight: h } = node;
+          const pad = Math.max(8, Math.min(64, Math.floor(Math.min(w, h) / 7)));
+          map.fitBounds(bounds, { padding: pad, maxZoom: 15, animate: false });
+        };
+        fit();
 
-        // The one authored moment: the shortfall establishes last, so the eye
-        // is led to the figure once. Skipped entirely under reduced motion.
+        // And keep it fitted: the projector, the phone and a window drag all
+        // change the track's height after the first paint.
+        const ro = new ResizeObserver(fit);
+        ro.observe(node);
+        resizer = ro;
+
+        // The one authored moment: the shortfall prints last, the way a second
+        // pass of the press lands on a sheet already carrying the first.
         if (!reduced) {
           requestAnimationFrame(() => map?.setPaintProperty('shortfall-line', 'line-opacity', 1));
         }
@@ -262,22 +351,23 @@
         observer = new MutationObserver(() => {
           if (!map) return;
           const p = palette();
-          map.setPaintProperty('boundary-line', 'line-color', p.ring);
+          map.setPaintProperty('boundary-line', 'line-color', p.claimed);
           map.setPaintProperty('claimed-line', 'line-color', p.claimed);
           map.setPaintProperty('shortfall-line', 'line-color', p.shortfall);
           map.setPaintProperty('reachable-line', 'line-color', p.reachable);
-          map.setPaintProperty('ring-line', 'line-color', p.ring);
-          map.setPaintProperty('element-dot', 'circle-color', p.element);
-          map.setPaintProperty('element-dot', 'circle-stroke-color', p.elementEdge);
+          map.setPaintProperty('ring-line', 'line-color', p.claimed);
+          if (map.hasImage('site')) map.removeImage('site');
+          map.addImage('site', markerImage(p.claimed, p.paper));
         });
         observer.observe(document.documentElement, {
           attributes: true,
-          attributeFilter: ['data-mode']
+          attributeFilter: ['data-mode'],
         });
       })();
 
       return () => {
         dead = true;
+        resizer?.disconnect();
         observer?.disconnect();
         map?.remove();
         map = null;
@@ -286,399 +376,481 @@
   }
 </script>
 
-<section class="wrap">
-  {#await coverage}
-    <div class="panel state">
-      <h2>Loading coverage</h2>
-      <p class="body">Reading the sidewalk network and the cooling elements for {nta}.</p>
-    </div>
-  {:then d}
-    {@const reading = d.readings?.[READING]}
-    {#if reading && reading.elements > 0}
-      <div class="panel readout">
-        <h2>{d.name}, {d.borough}</h2>
-        <p class="body">
-          A Heat Vulnerability Index 4 to 5 neighborhood: among the most heat-burdened communities
-          the City names.
-        </p>
-
-        <blockquote>
-          <p class="claim">“{d.city_claim.text}”</p>
-          <cite>{d.city_claim.source}</cite>
-        </blockquote>
-
-        <div class="figure">
-          <p class="figure-value">
-            <span class="figure-num">{gapOf(reading)}</span><span class="figure-unit">points</span>
-          </p>
-          <p class="figure-label">
-            The share of {d.name}'s sidewalk network that the quarter mile claims and that heat
-            takes away.
+{#await coverage}
+  <section class="notice state">
+    <p class="stencil">Reading the sidewalk network for {nta}</p>
+  </section>
+{:then d}
+  {@const reading = d.readings?.[READING]}
+  {#if reading && reading.elements > 0}
+    <section class="notice">
+      <!-- The claim, and what it costs. Two blocks, one heavy rule. -->
+      <header class="band">
+        <div class="claim">
+          <p class="claim-text">“{d.city_claim.text}”</p>
+          <p class="claim-src">{d.city_claim.source}</p>
+        </div>
+        <div class="gap">
+          <p class="gap-num">{gapOf(reading)}</p>
+          <p class="gap-unit">points overstated</p>
+          <p class="gap-say">
+            {d.name} pavement the quarter mile counts and heat takes away
           </p>
         </div>
+      </header>
 
-        <ol class="shares">
-          {#each shareRows(reading) as row (row.label)}
-            <li>
-              <span class="swatch {row.swatch}" aria-hidden="true"></span>
-              <span class="share-label">{row.label}</span>
-              <span class="share-pct mono">{row.share.toFixed(1)}%</span>
-              <span class="share-km mono">{row.km2 ? `${row.km2.toFixed(2)} km²` : ''}</span>
-            </li>
-          {/each}
-        </ol>
-
-        <p class="body count">
-          {reading.elements}
-          {reading.elements === 1 ? 'cooling element serves' : 'cooling elements serve'} all
-          {d.area_km2 ? `${d.area_km2.toFixed(2)} km² of ` : ''}{d.name}: spray showers and misting stations, counted
-          without drinking fountains.
-        </p>
-
-        <p class="honesty">
-          The mean radiant temperature field here is a proxy, not SOLWEIG. The City also opens
-          hydrant spray caps during heat advisories. Those are not in the published dataset and are
-          not counted here.
-        </p>
-      </div>
-
-      <div class="map-col">
-        <!--
-          The map repeats the readout, it does not replace it. Every number it
-          shows is in the DOM above, reachable without touching the canvas.
-        -->
+      <div class="sheet">
         <div
           class="map"
           role="application"
-          aria-label="Map of {d.name}. Every figure it shows is written out in the summary."
+          aria-label="Map of {d.name}. Every figure it shows is written out below it."
           {@attach thermalMap(d, reading, sprayOnly(d.elements))}
         ></div>
-        <ul class="legend">
-          <li>
-            <span class="swatch claimed" aria-hidden="true"></span>Claimed within
-            {Math.round(d.quarter_mile_m)} m
-          </li>
-          <li>
-            <span class="swatch shortfall" aria-hidden="true"></span>Claimed, unreachable in the heat
-          </li>
-          <li><span class="swatch reachable" aria-hidden="true"></span>Reachable in the heat</li>
-          <li><span class="dot" aria-hidden="true"></span>Cooling element and its quarter mile</li>
+
+        <ul class="key">
+          <li><span class="mark claimed" aria-hidden="true"></span>Counted as covered</li>
+          <li><span class="mark shortfall" aria-hidden="true"></span>Counted, unreachable in heat</li>
+          <li><span class="mark reachable" aria-hidden="true"></span>Reachable in heat</li>
+          <li><span class="mark site" aria-hidden="true"></span>Cooling element, quarter mile</li>
         </ul>
       </div>
-    {:else}
-      <div class="panel state">
-        <h2>{d.name}, {d.borough}</h2>
-        <p class="body">
-          A Heat Vulnerability Index 4 to 5 neighborhood with no spray showers and no misting
-          stations. There is nothing here to be a quarter mile away from. The claim covers none of
-          {d.name}'s sidewalk network, because the network leads nowhere.
-        </p>
-        <blockquote>
-          <p class="claim">“{d.city_claim.text}”</p>
-          <cite>{d.city_claim.source}</cite>
-        </blockquote>
-        <p class="honesty">
-          The mean radiant temperature field here is a proxy, not SOLWEIG. The City also opens
-          hydrant spray caps during heat advisories. Those are not in the published dataset and are
-          not counted here.
-        </p>
+
+      <footer class="stamp">
+        <ol class="readings">
+          {#each shareRows(reading) as row (row.key)}
+            <li>
+              <span class="mark {row.key}" aria-hidden="true"></span>
+              <span class="r-pct">{row.share.toFixed(1)}<span class="pc">%</span></span>
+              <span class="r-label">{row.label}</span>
+              <span class="r-sub">{row.sub}</span>
+              <span class="r-delta">
+                {#if row.delta}{row.delta} pts{:else}{row.km2 ? `${row.km2.toFixed(2)} km²` : ''}{/if}
+              </span>
+            </li>
+          {/each}
+        </ol>
+        <div class="census">
+          <p class="census-num">{reading.elements}</p>
+          <p class="census-say">
+            {reading.elements === 1 ? 'cooling element' : 'cooling elements'} for
+            {d.area_km2 ? `${d.area_km2.toFixed(2)} km² of ` : 'all of '}{d.name}, {d.borough}.
+            Spray showers and misting stations, counted without drinking fountains.
+          </p>
+          <p class="honesty">
+            Radiant temperature here is a proxy, not SOLWEIG. The City also opens hydrant spray
+            caps during heat advisories; those are not in the published dataset and are not
+            counted.
+          </p>
+        </div>
+      </footer>
+    </section>
+  {:else}
+    <section class="notice zero">
+      <div class="zero-body">
+        <p class="zero-num">0</p>
+        <div>
+          <p class="zero-say">
+            No spray showers. No misting stations. There is nothing in {d.name} to be a quarter
+            mile away from.
+          </p>
+          <p class="claim-text">“{d.city_claim.text}”</p>
+          <p class="claim-src">{d.city_claim.source}</p>
+          <p class="honesty">
+            A Heat Vulnerability Index 4 to 5 neighbourhood. The claim covers none of {d.name}'s
+            sidewalk network, because the network leads nowhere.
+          </p>
+        </div>
       </div>
-    {/if}
-  {:catch err}
-    <div class="panel state">
-      <h2>No coverage file for {nta}</h2>
-      <p class="body">
-        The file did not load: <span class="mono">{err.message}</span>. Build coverage for this
-        neighborhood, then reload the page. If the code is wrong, pass a 2020 NTA code such as
-        BK1602.
-      </p>
-    </div>
-  {/await}
-</section>
+    </section>
+  {/if}
+{:catch err}
+  <section class="notice state">
+    <p class="stencil">No coverage file for {nta}</p>
+    <p class="honesty">
+      The file did not load: <span class="mono">{err.message}</span>. Build coverage for this
+      neighbourhood, then reload. If the code is wrong, pass a 2020 NTA code such as BK1602.
+    </p>
+  </section>
+{/await}
 
 <style>
-  .wrap {
+  /* One sheet. Claim on top, evidence in the middle, the stamp at the foot. */
+  .notice {
     display: grid;
-    grid-template-columns: minmax(20rem, 27rem) minmax(0, 1fr);
-    gap: 24px;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     height: 100%;
     min-height: 0;
-    padding: 24px 16px;
-    background: var(--bg);
+    background: var(--paper);
     color: var(--ink);
     font-family: var(--font-sans);
-    overflow: auto;
   }
 
-  .wrap :global(::selection) {
-    background: var(--accent-2);
-    color: var(--ink);
-  }
-
-  .panel {
-    background: var(--surface);
-    border: 1px solid var(--border-2);
-    padding: 24px;
-    min-width: 0;
-    align-self: start;
-  }
-
-  /* The readout is longer than a projector's vertical space and every line of
-     it is load-bearing, including the honesty note at the end. It scrolls
-     inside its own column so the map never gets pushed off screen, and so the
-     note cannot be cropped away by a short viewport. */
-  .panel.readout {
-    align-self: stretch;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-color: var(--border-2) transparent;
-    scrollbar-width: thin;
-  }
-
-  .state {
-    grid-column: 1 / -1;
-    max-width: 44rem;
-  }
-
-  h2 {
-    margin-top: 8px;
-    font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2rem);
-    font-weight: 700;
-    line-height: 1.15;
-    letter-spacing: -0.01em;
-    color: var(--ink);
-  }
-
-  .body {
-    margin-top: 10px;
-    font-size: 0.95rem;
-    line-height: 1.55;
-    color: var(--ink-2);
-  }
-
-  blockquote {
-    margin-top: 28px;
-    padding-left: 16px;
-    border-left: 1px solid var(--rule);
+  /* ── The claim band ────────────────────────────────────────────────────── */
+  .band {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(19rem, 30%, 27rem);
+    align-items: stretch;
+    border-bottom: var(--rule-heavy) solid var(--ink);
   }
 
   .claim {
-    font-size: 1.02rem;
-    line-height: 1.5;
-    color: var(--ink);
+    align-self: center;
+    padding: 20px 28px 20px 24px;
   }
 
-  cite {
-    display: block;
-    margin-top: 8px;
-    font-size: 0.8rem;
-    font-style: normal;
-    line-height: 1.4;
+  /* The City's own sentence, set at the scale a notice sets its subject line.
+     It is in quotation marks because it is a quotation, and the source sits
+     under it in the mono the rest of the furniture uses. */
+  .claim-text {
+    max-width: 40ch;
+    font-size: clamp(1.05rem, 0.6rem + 1.25vw, 1.85rem);
+    font-weight: 700;
+    line-height: 1.16;
+    letter-spacing: -0.018em;
+    text-wrap: balance;
+  }
+
+  .claim-src {
+    margin-top: 10px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
     color: var(--muted);
   }
 
-  .figure {
-    margin-top: 32px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
-  }
-
-  .figure-value {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    color: var(--error);
-  }
-
-  .figure-num {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    font-size: clamp(3.25rem, 2rem + 5vw, 4.75rem);
-    font-weight: 500;
-    line-height: 0.92;
-    letter-spacing: -0.03em;
-  }
-
-  .figure-unit {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--ink-2);
-  }
-
-  .figure-label {
-    margin-top: 12px;
-    max-width: 30rem;
-    font-size: 0.95rem;
-    line-height: 1.5;
-    color: var(--ink);
-  }
-
-  .shares {
-    margin-top: 24px;
-    list-style: none;
-    border-top: 1px solid var(--border);
-  }
-
-  .shares li {
+  /* The figure, on the black placard a work notice puts its headline on.
+     Orange on paper is not a contrast ratio anyone should read type at; orange
+     on black is, and the inversion is what makes this the loudest thing on the
+     sheet from the back of a room. */
+  .gap {
     display: grid;
-    grid-template-columns: 14px minmax(0, 1fr) auto auto;
-    align-items: baseline;
-    gap: 10px;
-    padding: 9px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.85rem;
-  }
-
-  .share-label {
-    color: var(--ink-2);
-  }
-
-  .share-pct,
-  .share-km {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .share-pct {
-    color: var(--ink);
-    font-weight: 500;
-  }
-
-  .share-km {
-    min-width: 5.5rem;
+    align-content: center;
+    padding: 18px 24px 20px;
+    background: var(--ink);
+    color: var(--paper);
     text-align: right;
-    color: var(--muted);
   }
 
-  .count {
-    margin-top: 20px;
+  .gap-num {
+    font-size: clamp(4rem, 1.2rem + 8.5vw, 8rem);
+    font-weight: 900;
+    line-height: 0.8;
+    letter-spacing: -0.045em;
+    color: var(--barricade);
   }
 
-  .honesty {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-    font-size: 0.8rem;
-    line-height: 1.5;
-    color: var(--muted);
+  .gap-unit {
+    margin-top: 10px;
+    font-size: clamp(0.85rem, 0.62rem + 0.6vw, 1.2rem);
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--paper);
   }
 
-  .mono {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
+  .gap-say {
+    margin-top: 8px;
+    max-width: 28ch;
+    margin-left: auto;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: #C9C4B6;
   }
 
-  .map-col {
+  /* ── The evidence ──────────────────────────────────────────────────────── */
+  .sheet {
     position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-width: 0;
     min-height: 0;
+    border-bottom: var(--rule-heavy) solid var(--ink);
   }
 
   .map {
-    flex: 1;
-    min-height: 420px;
-    border: 1px solid var(--border-2);
-    background: var(--bg-2);
-  }
-
-  .map:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-  }
-
-  .legend {
     position: absolute;
-    left: 12px;
-    bottom: 12px;
-    z-index: 2;
-    background: color-mix(in oklab, var(--surface) 92%, transparent);
-    border: 1px solid var(--border-2);
-    padding: 10px 12px;
-    box-shadow: 0 2px 10px rgb(0 0 0 / 0.10);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 20px;
-    list-style: none;
-    font-size: 0.8rem;
-    color: var(--ink-2);
+    inset: 0;
+    background: var(--paper-2);
   }
 
-  .legend li {
+  .map :global(.maplibregl-ctrl-attrib) {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--paper);
+    color: var(--muted);
+    border-radius: 0;
+  }
+  .map :global(.maplibregl-ctrl-attrib a) { color: var(--muted); }
+
+  /* The key is stamped onto the sheet, not floated over it: square corners,
+     solid ground, a heavy rule, no shadow and no translucency. */
+  .key {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 2;
+    display: grid;
+    gap: 7px;
+    padding: 12px 14px;
+    list-style: none;
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+
+  .key li {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
   }
 
-  .swatch {
+  /* Every mark carries its pattern, so the key survives a bad projector and a
+     viewer who cannot separate orange from blue. */
+  .mark {
+    flex: none;
     display: inline-block;
+    width: 26px;
+    height: 10px;
+    border: 1px solid var(--ink);
+  }
+  .mark.claimed {
+    height: 0;
+    border: 0;
+    border-top: 2px dotted var(--ink);
+  }
+  .mark.shortfall {
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--barricade) 0 4px,
+      #000 4px 7px
+    );
+    border-color: var(--ink);
+  }
+  .mark.network {
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--muted) 0 4px,
+      var(--paper) 4px 7px
+    );
+  }
+  .mark.reachable {
+    background: var(--signal);
+  }
+  .mark.site {
     width: 14px;
-    flex: none;
-    border-radius: 1px;
-    background: var(--muted);
+    height: 14px;
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 7px var(--ink);
   }
 
-  .swatch.claimed {
-    height: 2px;
-    background: var(--muted);
+  /* ── The stamp ─────────────────────────────────────────────────────────── */
+  .stamp {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 0 28px;
+    padding: 16px 24px 18px;
+    background: var(--paper-2);
   }
 
-  .swatch.network {
-    height: 3px;
-    background: var(--ink-2);
+  .readings {
+    display: grid;
+    gap: 6px;
+    list-style: none;
   }
 
-  .swatch.shortfall {
-    height: 7px;
-    background: var(--error);
+  .readings li {
+    display: grid;
+    grid-template-columns: 34px minmax(5.2rem, auto) minmax(0, auto) minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 14px;
   }
 
-  .swatch.reachable {
-    height: 4px;
-    background: var(--primary);
+  /* Worst last, and loudest last. The reading the whole sheet is about should
+     not be the same weight as the claim it disagrees with. */
+  .readings li:last-child .r-pct { color: var(--barricade-deep); }
+  .readings li:last-child .r-label { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 2px; }
+
+  .readings .mark { align-self: center; }
+
+  .r-pct {
+    font-size: clamp(1.25rem, 0.9rem + 0.95vw, 1.85rem);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .r-pct .pc { font-size: 0.6em; font-weight: 800; margin-left: 1px; }
+
+  .r-label {
+    font-size: 0.88rem;
+    font-weight: 800;
+    letter-spacing: 0.005em;
   }
 
-  .dot {
-    width: 11px;
-    height: 11px;
-    flex: none;
-    border-radius: 50%;
-    background: var(--poi-cooling);
-    box-shadow: 0 0 0 2px var(--surface), 0 1px 3px rgb(0 0 0 / 0.28);
+  .r-sub {
+    font-size: 0.75rem;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  @media (max-width: 900px) {
-    .wrap {
+  /* What each reading is down from. A percentage with nothing to measure it
+     against invites the reader to decide for themselves whether it is bad. */
+  .r-delta {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .readings li:last-child .r-delta { color: var(--barricade-deep); font-weight: 700; }
+
+  .census {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px 14px;
+    padding-left: 28px;
+    border-left: var(--rule-hair) solid var(--ink);
+  }
+
+  .census-num {
+    grid-row: span 2;
+    font-size: clamp(2.2rem, 1.4rem + 2.4vw, 3.4rem);
+    font-weight: 900;
+    line-height: 0.85;
+    letter-spacing: -0.03em;
+  }
+
+  .census-say {
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .honesty {
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+  .census .honesty { align-self: start; }
+
+  /* ── Zero and fallback states ──────────────────────────────────────────── */
+  /* These states are one block, centred. The row is auto rather than 1fr so
+     the block is the height of its content instead of stretching into a sheet
+     of empty rule. */
+  .zero,
+  .state {
+    grid-template-rows: auto;
+    align-content: center;
+    justify-content: center;
+    padding: 32px 24px;
+    overflow: auto;
+  }
+
+  .zero-body {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 36px;
+    width: min(100%, 76rem);
+    padding: 40px 44px 44px;
+    border: var(--rule-heavy) solid var(--ink);
+    background: var(--paper);
+  }
+
+  .zero-num {
+    font-size: clamp(6rem, 3rem + 13vw, 16rem);
+    font-weight: 900;
+    line-height: 0.78;
+    letter-spacing: -0.05em;
+    color: var(--barricade-deep);
+  }
+
+  .zero-say {
+    max-width: 30ch;
+    font-size: clamp(1.25rem, 0.8rem + 1.9vw, 2.6rem);
+    font-weight: 800;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+  .zero-body .claim-text {
+    margin-top: 24px;
+    max-width: 52ch;
+    font-size: clamp(0.95rem, 0.85rem + 0.35vw, 1.2rem);
+    font-weight: 600;
+  }
+  .zero-body .honesty { margin-top: 16px; max-width: 58ch; font-size: 0.8rem; }
+
+  .stencil {
+    font-size: clamp(1.1rem, 0.9rem + 0.8vw, 1.6rem);
+    font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+  .state .honesty { margin-top: 10px; max-width: 60ch; }
+
+  /* ── Narrow ────────────────────────────────────────────────────────────── */
+  @media (max-width: 62rem) {
+    .band {
       grid-template-columns: minmax(0, 1fr);
-      padding: 16px;
+      align-items: start;
     }
-
-    .panel {
-      padding: 18px 16px;
+    .claim { padding: 14px 16px 12px; }
+    .gap {
+      text-align: left;
+      padding: 14px 16px 16px;
     }
+    .gap-say { margin-left: 0; }
 
-    .map {
-      min-height: 320px;
-      height: 62vh;
+    .stamp {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 14px;
+      padding: 12px 16px 14px;
     }
-
-    /* Stacked, the page scrolls, so the readout must not also scroll inside
-       itself: two nested scrollers on a phone means the honesty note at the
-       end can be reached only by finding the inner one. */
-    .panel.readout {
-      align-self: start;
-      overflow-y: visible;
+    .readings li {
+      grid-template-columns: 26px minmax(3.8rem, auto) minmax(0, 1fr) auto;
     }
+    .r-sub { display: none; }
+    .census {
+      padding-left: 0;
+      padding-top: 12px;
+      border-left: 0;
+      border-top: var(--rule-hair) solid var(--ink);
+    }
+    /* The evidence must stay the largest thing on the sheet, even on a phone
+       where the band and the stamp both want the room. */
+    /* On a phone the three blocks do not fit one screen and squeezing them
+       until they do is how the readings ended up cropped. The notice scrolls
+       instead, and the map keeps a real share of the first screen. */
+    .notice {
+      grid-template-rows: auto auto auto;
+      overflow-y: auto;
+    }
+    .sheet {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 52vh;
+    }
+    /* The key precedes the map here, but only visually: the DOM keeps the map
+       first so the reading order still goes evidence, then legend. */
+    .map { position: relative; inset: auto; min-height: 0; order: 2; }
 
-    /* And the legend stops floating, because on a phone-sized map it covers
-       more of the argument than it explains. */
-    .legend {
+    /* The key stops floating over a map this small and becomes a strip under
+       the band, two up, where it covers nothing. */
+    .key {
       position: static;
-      margin-top: 12px;
-      box-shadow: none;
-      background: var(--surface);
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 5px 10px;
+      padding: 8px 16px 9px;
+      border: 0;
+      border-bottom: var(--rule-hair) solid var(--ink);
+      background: var(--paper-2);
+      font-size: 0.68rem;
+      order: 1;
     }
+    .zero-body { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 20px; }
+    .zero-num { line-height: 0.85; }
   }
 </style>

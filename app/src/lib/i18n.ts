@@ -3,7 +3,7 @@
 
 const TRANSLATIONS = {
   en: {
-    'app.title': 'Ariadne. NYC Accessibility Router',
+    'app.title': 'DesirePath. What the quarter mile delivers',
     'chat.placeholder': 'Describe where you want to go or what you need…',
     'chat.send': 'Send message',
     'chat.voice': 'Speak your query',
@@ -38,7 +38,7 @@ const TRANSLATIONS = {
     'loading.graph': 'Loading pedestrian graph…',
     'loading.transit': 'Transit index waiting…',
     'loading.model': 'Loading AI model (WebGPU)…',
-    'loading.ready': 'Ariadne is ready.',
+    'loading.ready': 'DesirePath is ready.',
     'error.no_webgpu': 'WebGPU not available. Map + routing work, but chat is disabled. Use Chrome or Edge.',
     'error.router_not_ready': 'Router not ready yet.',
     'error.model_loading': 'Model is still loading. Please wait.',
@@ -48,7 +48,7 @@ const TRANSLATIONS = {
     'map.recenter': 'Center on New York City',
   },
   es: {
-    'app.title': 'Ariadne. Enrutador de accesibilidad de NYC',
+    'app.title': 'DesirePath. Lo que entrega el cuarto de milla',
     'chat.placeholder': 'Describe a dónde quieres ir o qué necesitas…',
     'chat.send': 'Enviar mensaje',
     'chat.voice': 'Habla tu consulta',
@@ -83,7 +83,7 @@ const TRANSLATIONS = {
     'loading.graph': 'Cargando grafo peatonal…',
     'loading.transit': 'Índice de tránsito en espera…',
     'loading.model': 'Cargando modelo IA (WebGPU)…',
-    'loading.ready': 'Ariadne está lista.',
+    'loading.ready': 'DesirePath está listo.',
     'error.no_webgpu': 'WebGPU no disponible. El mapa y el enrutamiento funcionan, pero el chat está desactivado.',
     'error.router_not_ready': 'El enrutador aún no está listo.',
     'error.model_loading': 'El modelo aún se está cargando. Por favor espera.',

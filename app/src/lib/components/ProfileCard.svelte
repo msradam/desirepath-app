@@ -403,32 +403,37 @@
     color: var(--ink);
   }
 
+  /* Stacked, not wrapped. Three options of different lengths in a flex row
+     leave one orphan on a second line at every width worth supporting, and a
+     control that decides which router runs should not look accidental. */
   .segments {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
     margin-top: 10px;
-    border: 1px solid var(--border-2);
+    border: 2px solid var(--ink);
   }
 
   .segment {
-    flex: 1 1 10rem;
+    display: flex;
+    align-items: center;
     padding: 10px 12px;
     font-size: 0.85rem;
-    line-height: 1.35;
+    font-weight: 600;
+    line-height: 1.3;
     color: var(--ink-2);
     background: var(--surface);
-    border-right: 1px solid var(--border-2);
+    border-bottom: 1px solid var(--ink);
     cursor: pointer;
   }
 
   .segment:last-child {
-    border-right: none;
+    border-bottom: none;
   }
 
+  /* The selected option is filled and bolder, so it is never colour alone. */
   .segment.on {
-    background: var(--primary);
-    color: var(--primary-on);
-    font-weight: 500;
+    background: var(--signal);
+    color: #FFFFFF;
+    font-weight: 800;
   }
 
   .segment input {

@@ -20,12 +20,17 @@
     top: -9999px;
     left: 6px;
     z-index: 9999;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     padding: 8px 16px;
-    background: var(--accent);
-    color: var(--bg);
-    font-weight: 600;
+    /* Stencil black on barricade orange: the sign's own emergency pairing, and
+       the only combination in the palette that holds at this size. */
+    background: var(--barricade);
+    color: #121212;
+    font-weight: 800;
     font-size: 0.875rem;
-    border-radius: 0 0 6px 6px;
+    border-radius: 0;
     text-decoration: none;
     white-space: nowrap;
   }

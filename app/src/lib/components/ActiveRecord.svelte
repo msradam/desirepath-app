@@ -14,7 +14,7 @@
     <!-- Empty state -->
     <div class="empty-state">
       <p class="empty-doc-text">
-        Ariadne is a working reference for accessible movement through New York.
+        DesirePath is a working reference for accessible movement through New York in the heat.
         Type a query above to consult the record.
       </p>
       <ExampleQueries />

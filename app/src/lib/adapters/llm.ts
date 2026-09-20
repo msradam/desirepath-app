@@ -111,7 +111,7 @@ export class WebLLMGraniteAdapter implements LLMAdapter {
         model_lib: modelLib,
         vram_required_MB: 1800,
         low_resource_required: false,
-        // Tuned for Ariadne's two-turn pattern:
+        // Tuned for DesirePath's two-turn pattern:
         //   Turn 1 (tool extraction): system prompt ~1.1k tokens + user ~30 tokens
         //   Turn 2 (grounded summary): grounding docs ~500 tokens + user ~30 tokens
         // Both fit well under 2048. Prefill_chunk_size MUST equal context_window_size

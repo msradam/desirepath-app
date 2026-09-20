@@ -32,7 +32,6 @@
 
   // Components
   import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
-  import FeedStatus from '$lib/components/FeedStatus.svelte';
   import QueryLog from '$lib/components/QueryLog.svelte';
   import ActiveRecord from '$lib/components/ActiveRecord.svelte';
   import ProfileCard from '$lib/components/ProfileCard.svelte';
@@ -426,7 +425,12 @@
 <div class="page-layout">
   <!-- Left: query log + active record -->
   <div class="left-col" aria-label="Query record">
-    <FeedStatus />
+    <!-- The same plate the coverage notice carries, so the two screens read as
+         one thing and each can be reached from the other. -->
+    <header class="plate">
+      <a class="wordmark" href="/">Desire<span>Path</span></a>
+      <a class="cross" href="/coverage">Quarter-mile coverage →</a>
+    </header>
 
     {#if !booted}
       <LoadingOverlay rows={[
@@ -560,6 +564,41 @@
   }
 
   /* Left column */
+  .plate {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--ink);
+    color: var(--paper);
+    flex: none;
+  }
+
+  .wordmark {
+    font-size: 1.05rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: var(--paper);
+  }
+  .wordmark span { color: var(--barricade); }
+
+  .cross {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--paper);
+    text-decoration: none;
+    padding: 5px 8px;
+    border: 2px solid var(--subtle);
+  }
+  .cross:hover { border-color: var(--barricade); color: var(--barricade); }
+  .cross:focus-visible { outline: 3px solid var(--barricade); outline-offset: 2px; }
+
   .left-col {
     width: 460px;
     flex-shrink: 0;
