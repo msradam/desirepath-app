@@ -56,4 +56,9 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@mlc-ai/web-llm'],
   },
+  test: {
+    // Unit tests only. tests/e2e/ and tests/a11y/ are Playwright specs and
+    // throw "test() was called here" if Vitest collects them.
+    include: ['tests/unit/**/*.{test,spec}.{js,ts}'],
+  },
 });

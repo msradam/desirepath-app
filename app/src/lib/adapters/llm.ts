@@ -6,7 +6,32 @@ export type CompletionOpts = {
   temperature?: number;
   /** Stop tokens. Model halts generation as soon as any is produced. */
   stop?: string | string[];
+  /**
+   * EBNF the decoder is masked against, compiled by XGrammar.
+   *
+   * When this is set the model cannot emit a token that would leave the
+   * grammar, so the output is schema-valid by construction rather than by
+   * hope. @mlc-ai/web-llm bundles @mlc-ai/web-xgrammar, so this costs no extra
+   * dependency and no network call.
+   */
+  grammar?: string;
 };
+
+/**
+ * Thrown when a caller asked for grammar-constrained decoding and the runtime
+ * could not provide it.
+ *
+ * This is deliberately fatal rather than a fallback to unconstrained
+ * generation. An unconstrained extraction that happens to parse looks exactly
+ * like a constrained one, and the failure mode is a dropped user constraint
+ * that nobody notices. Better to refuse.
+ */
+export class UnconstrainedDecodeError extends Error {
+  constructor(reason: string) {
+    super(`refusing to decode without the grammar: ${reason}`);
+    this.name = 'UnconstrainedDecodeError';
+  }
+}
 
 /** Per-turn inference timing, populated after each completion finishes. */
 export type LLMStats = {
@@ -25,18 +50,24 @@ export interface LLMAdapter {
   completion(messages: ChatMessage[], opts?: CompletionOpts): AsyncIterable<string>;
   /** Stats from the most recent completion, or null before any have run. */
   getLastStats(): LLMStats | null;
+  /** Whether the most recent completion was grammar-constrained. */
+  wasLastConstrained(): boolean;
 }
 
 export class WebLLMGraniteAdapter implements LLMAdapter {
   private engine: unknown = null;
   private _ready = false;
   private _lastStats: LLMStats | null = null;
+  private _lastConstrained = false;
 
   constructor(private log: typeof PrivacyLogType) {}
 
   get ready(): boolean { return this._ready; }
 
   getLastStats(): LLMStats | null { return this._lastStats; }
+
+  /** Whether the most recent completion was grammar-constrained. */
+  wasLastConstrained(): boolean { return this._lastConstrained; }
 
   async probeWebGPU(): Promise<{ ok: boolean; info: string }> {
     if (!('gpu' in navigator)) return { ok: false, info: 'no navigator.gpu. Use Chrome or Edge' };
@@ -108,13 +139,34 @@ export class WebLLMGraniteAdapter implements LLMAdapter {
       chat: { completions: { create(o: unknown): Promise<AsyncIterable<{ choices: Array<{ delta: { content?: string } }> }>> } };
       runtimeStatsText?(): Promise<string>;
     };
-    const stream = await eng.chat.completions.create({
+    const request: Record<string, unknown> = {
       messages,
       stream: true,
       max_tokens: opts?.max_tokens ?? 256,
       temperature: opts?.temperature ?? 0,
       ...(opts?.stop ? { stop: opts.stop } : {}),
-    });
+    };
+
+    if (opts?.grammar) {
+      // Masked at the logit level. If the runtime does not understand this
+      // field the request must fail rather than quietly decode unconstrained.
+      request.response_format = { type: 'grammar', grammar: opts.grammar };
+      this._lastConstrained = true;
+    } else {
+      this._lastConstrained = false;
+    }
+
+    let stream;
+    try {
+      stream = await eng.chat.completions.create(request);
+    } catch (e) {
+      if (opts?.grammar) {
+        throw new UnconstrainedDecodeError(
+          `WebLLM rejected the grammar request: ${(e as Error)?.message ?? e}`,
+        );
+      }
+      throw e;
+    }
     for await (const chunk of stream) {
       yield chunk.choices?.[0]?.delta?.content ?? '';
     }

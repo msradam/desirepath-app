@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import requests
+from pyproj import Transformer
 
 SOCRATA = "https://data.cityofnewyork.us/resource"
 PAGE = 50_000
@@ -30,6 +31,8 @@ PAGE = 50_000
 NTA_DATASET = "9nt8-h7nd"
 BUILDING_DATASET = "5zhs-2jue"
 TREE_DATASET = "uvpi-gqnh"
+COOLING_DATASET = "h2bn-gu9k"      # Cool It! NYC 2020, cooling sites
+FOUNTAIN_DATASET = "wxhr-qbhz"     # Cool It! NYC 2020, drinking fountains
 
 # Street-tree allometry. Both are rules of thumb for open-grown urban street
 # trees, not fitted allometries, and both are deliberately exposed as constants
@@ -114,7 +117,7 @@ def fetch_nta(root: Path, nta2020: str) -> tuple[dict, SourceRecord]:
     """Return the NTA's GeoJSON geometry and its provenance record."""
     rows = _cached(
         root, NTA_DATASET, nta2020,
-        {"$where": f"nta2020='{nta2020}'", "$select": "nta2020,ntaname,boroname,the_geom"},
+        {"$where": f"nta2020='{nta2020}'", "$select": "nta2020,ntaname,boroname,shape_area,the_geom"},
     )
     if not rows:
         raise SystemExit(f"no NTA matches nta2020={nta2020!r}")
@@ -167,6 +170,79 @@ def fetch_trees(root: Path, nta2020: str, bbox: tuple[float, float, float, float
         _now(), f"{SOCRATA}/{TREE_DATASET}.json",
     )
     return rows, rec
+
+
+def fetch_cooling_elements(root: Path, bbox: tuple[float, float, float, float]) -> tuple[list[dict], list[SourceRecord]]:
+    """Cool It! NYC outdoor cooling elements inside the bbox.
+
+    The claim under test, from the City's own announcement of 24 June 2020:
+    the programme ensures "no New Yorker in the most heat-burdened communities
+    is more than 1/4 mile away from an outdoor cooling element". Note "away
+    from": a straight-line distance, which is what this project measures
+    against what the sidewalk network actually delivers.
+
+    Two datasets make up the set of outdoor elements. Spray showers and misting
+    stations are the headline ones; drinking fountains are the other class the
+    programme counts. Both are filtered to activated sites only, because an
+    element that is not turned on does not cool anybody.
+    """
+    min_lon, min_lat, max_lon, max_lat = bbox
+    out: list[dict] = []
+    records: list[SourceRecord] = []
+
+    sites = _cached(
+        root, COOLING_DATASET, bbox_key("coolit", bbox),
+        {"$where": f"x between {min_lon} and {max_lon} AND y between {min_lat} and {max_lat}",
+         "$select": "featuretype,propertyname,borough,status,x,y"},
+    )
+    for r in sites:
+        if str(r.get("status", "")).strip().lower() != "activated":
+            continue
+        try:
+            out.append({
+                "lon": float(r["x"]), "lat": float(r["y"]),
+                "name": r.get("propertyname") or "cooling element",
+                "kind": r.get("featuretype") or "cooling element",
+                "dataset": COOLING_DATASET,
+            })
+        except (KeyError, TypeError, ValueError):
+            continue
+    records.append(SourceRecord(
+        COOLING_DATASET, "Cool It! NYC 2020, Cooling Sites", len(sites),
+        _now(), f"{SOCRATA}/{COOLING_DATASET}.json",
+    ))
+
+    # This dataset carries x and y in NY State Plane Long Island feet
+    # (EPSG:2263), not longitude and latitude, and has no the_geom column. The
+    # reprojection happens here rather than at the call site, once.
+    fountains = _cached(
+        root, FOUNTAIN_DATASET, "all",
+        {"$select": "propertyname,borough,outdoor,df_activated,x,y"},
+    )
+    to_wgs = Transformer.from_crs("EPSG:2263", "EPSG:4326", always_xy=True)
+    for r in fountains:
+        if str(r.get("outdoor", "")).strip().lower() not in ("yes", "true", "y"):
+            continue
+        if str(r.get("df_activated", "")).strip().lower() != "activated":
+            continue
+        try:
+            lon, lat = to_wgs.transform(float(r["x"]), float(r["y"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not (min_lon <= lon <= max_lon and min_lat <= lat <= max_lat):
+            continue
+        out.append({
+            "lon": lon, "lat": lat,
+            "name": r.get("propertyname") or "drinking fountain",
+            "kind": "Drinking Fountain",
+            "dataset": FOUNTAIN_DATASET,
+        })
+    records.append(SourceRecord(
+        FOUNTAIN_DATASET, "Cool It! NYC 2020, Drinking Fountains", len(fountains),
+        _now(), f"{SOCRATA}/{FOUNTAIN_DATASET}.json",
+    ))
+
+    return out, records
 
 
 def crown_radius_m(dbh_inches: float) -> float:

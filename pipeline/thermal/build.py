@@ -41,6 +41,9 @@ WGS84 = "EPSG:4326"
 # limitation; see HANDOFF.md.
 MARGIN_M = 700.0
 
+#: A quarter mile in metres, the distance in the City's Cool It! NYC claim.
+QUARTER_MILE_M = 402.336
+
 # ── reference meteorology ────────────────────────────────────────────────────
 #
 # The grid answers "where is it hot when it matters", so the design condition
@@ -214,6 +217,8 @@ def build_neighbourhood(
         when, altitude, azimuth, met, cell,
     )
 
+    cooling, cooling_srcs = S.fetch_cooling_elements(root, bbox)
+
     walkable = ~occupied
     mrt_walkable = tg.mrt[walkable]
     finite = mrt_walkable[np.isfinite(mrt_walkable)]
@@ -259,7 +264,24 @@ def build_neighbourhood(
             "max": float(np.max(finite)) if finite.size else None,
             "shaded_share": float((finite < 45.0).mean()) if finite.size else None,
         },
-        "sources": [nta_src.as_provenance(), b_src.as_provenance(), t_src.as_provenance()],
+        "cooling_elements": cooling,
+        "boundary": nta_row["the_geom"],
+        # shape_area is square feet in the NTA dataset's own projection.
+        "area_km2": round(float(nta_row.get("shape_area", 0)) * 0.09290304 / 1e6, 4),
+        "quarter_mile_m": QUARTER_MILE_M,
+        "city_claim": {
+            "text": (
+                "no New Yorker in the most heat-burdened communities is more than "
+                "1/4 mile away from an outdoor cooling element"
+            ),
+            "source": "NYC DEP, Mayor de Blasio Expands Cool It! NYC, 24 June 2020",
+            "note": (
+                "'away from' is a straight-line distance. This project measures it "
+                "against what the pedestrian network actually delivers."
+            ),
+        },
+        "sources": [nta_src.as_provenance(), b_src.as_provenance(), t_src.as_provenance()]
+        + [r.as_provenance() for r in cooling_srcs],
     }
     return tg, meta
 
