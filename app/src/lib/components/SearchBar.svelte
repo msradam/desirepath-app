@@ -41,6 +41,11 @@
     // somewhere cool to a wifi pole. "donde descansar" reaches the same
     // destination as the English query, 2/2.
     'Estoy en Mott Haven y necesito un lugar fresco donde descansar, uso silla de ruedas',
+    // Asks for the wifi kiosk on purpose, which is the same resource the
+    // Spanish query above is refused. A LinkNYC pole is a correct answer to
+    // "I need wifi" and a wrong one to "I need somewhere cool", and the
+    // safety check is what knows the difference. 2/2.
+    "I'm in Mott Haven and I need free wifi and somewhere to charge my phone",
     // Heat AND accessibility on the same route: both cost terms active at
     // once, which is the whole claim. A kerb without a ramp and 400 m of
     // unshaded asphalt are the same kind of statement about the same graph.
