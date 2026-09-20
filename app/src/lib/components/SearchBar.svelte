@@ -19,6 +19,12 @@
   // showing the honest empty state is worth doing on purpose rather than by
   // accident.
   const SUGGESTIONS = [
+    // Heat AND accessibility on the same route: both cost terms active at
+    // once, which is the whole claim. A kerb without a ramp and 400 m of
+    // unshaded asphalt are the same kind of statement about the same graph.
+    "Junius Street to Betsy Head Park, manual wheelchair and I can't handle the heat",
+    '125th Street Library to Abraham Lincoln Playground, power wheelchair, it is 95 degrees out',
+    'Mott Haven Library to Governor Smith Playground, low vision and I overheat easily',
     // Inside the thermal model. These show the heat layer working.
     "Rockaway Avenue to Betsy Head Park, I can't handle the heat",
     '125th Street Library to Abraham Lincoln Playground, I have trouble with heat',

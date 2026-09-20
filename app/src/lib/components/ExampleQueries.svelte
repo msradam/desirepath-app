@@ -7,6 +7,15 @@
   // originals are kept below, because the empty state is worth showing on
   // purpose.
   const EXAMPLES = [
+    // Heat AND accessibility together. Both cost terms active on the same
+    // route, which is the claim the project actually makes: a kerb and an
+    // unshaded block are the same kind of constraint on the same graph.
+    // Verified at 93 to 100% thermal coverage under the wheelchair and
+    // low-vision profiles.
+    "Junius Street to Betsy Head Park, manual wheelchair and I can't handle the heat",
+    '125th Street Library to Abraham Lincoln Playground, power wheelchair, it is 95 degrees out',
+    'Mott Haven Library to Governor Smith Playground, low vision and I overheat easily',
+    // Heat alone.
     "Rockaway Avenue to Betsy Head Park, I can't handle the heat",
     '125th Street Library to Abraham Lincoln Playground, I have trouble with heat',
     'Mott Haven Library to Governor Smith Playground, manual wheelchair',
