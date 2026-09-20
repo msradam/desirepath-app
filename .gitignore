@@ -37,6 +37,9 @@ pitch.md
 pitch.pdf
 pitch-preview.*.png
 screenshot-*.png
+coverage-desktop.png
+route-desktop.png
+landing.png
 *.log
 
 # Editor / OS
@@ -50,6 +53,12 @@ data/thermal/
 # Screenshots from UI verification passes
 app/shots/
 app/.playwright-mcp/
+
+# Tooling scratch. Browser session dumps and design-pass screenshots, both
+# regenerated on demand and neither of any use to somebody reading the repo.
+.playwright-mcp/
+.impeccable/
+.serena/
 
 # Demo scratch
 /tmp/ariadne-cold-*

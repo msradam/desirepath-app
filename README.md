@@ -14,7 +14,7 @@ extension of accessibility routing, and the evidence is that **nothing in the
 data model had to change to add it**. Mean radiant temperature became one more
 edge attribute beside kerb height and crossing width, and sensitivity to it
 became one more cost term. The router did not learn a new concept. It learned a
-new column. The full argument is in [THESIS.md](THESIS.md).
+new column. The full argument is in [docs/process/THESIS.md](docs/process/THESIS.md).
 
 Two screens. The coverage notice measures the claim; the routing view plans a
 walk from a typed sentence. What the model read out of that sentence is
@@ -48,7 +48,7 @@ into IndexedDB, about 30 seconds; after that it is instant and offline. The
 coverage screen needs no model and is ready immediately.
 
 Run locally and the model comes from Ollama on your own machine instead, which
-removes that wait entirely. See [DEMO.md](DEMO.md).
+removes that wait entirely. See [docs/process/DEMO.md](docs/process/DEMO.md).
 
 This repo contains both the app and the data pipeline that produces the graphs and indexes it loads.
 
@@ -187,7 +187,7 @@ and absorption coefficients, and simplifies the inputs: extruded building
 footprints at 4 m rather than a LiDAR surface model at 1 m, street trees rather
 than a canopy model, one hour, clear sky. Building shade buys 28.8 K here
 against the 22.8 to 30.9 K that Middel et al. (2021) measured across 1,988
-samples. See `HANDOFF.md` for what else is proxied and where.
+samples. See `docs/process/HANDOFF.md` for what else is proxied and where.
 
 ### Two new surfaces
 
@@ -240,7 +240,7 @@ ariadne-nyc/
 ├── data/                        # built artifacts (gitignored, regenerable)
 ├── models/                      # Granite weights (gitignored, fetched by setup-model.sh)
 ├── ARCHITECTURE.md              # detailed architecture reference
-├── METHODOLOGY.md               # pipeline data sources and transformations
+├── docs/process/               # methodology, thesis, handoff, demo script
 └── README.md                    # this file
 ```
 

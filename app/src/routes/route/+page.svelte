@@ -282,7 +282,7 @@
   //
   // There is no confirmation step any more. What the model inferred is
   // disclosed on the result instead of before it, which is a real weakening of
-  // the original guarantee and is recorded as such in HANDOFF.md: a constraint
+  // the original guarantee and is recorded in docs/process/HANDOFF.md: a
   // the model dropped is now visible only after a route has been planned
   // without it. The disclosure is not optional and is not behind a control,
   // because it is the only thing left standing in for the card.

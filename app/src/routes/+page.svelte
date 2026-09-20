@@ -6,7 +6,7 @@
    * glanced at rather than read: a line, a pair of numbers and one button. The
    * first version was three paragraphs, a three-column definition list and a
    * limits note, which is a document. Those facts live in README.md and
-   * THESIS.md, where somebody can actually read them.
+   * docs/process/THESIS.md, where somebody can actually read them.
    *
    * It loads no model, no graph and no map, so it is ready the moment it is
    * served and there is never a loading bar behind the speaker.

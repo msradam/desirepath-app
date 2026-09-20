@@ -38,7 +38,7 @@ export const OLLAMA_PROXY = '/ollama';
 /**
  * Granite 4 micro, the same family as the WebGPU path's Granite 4.0 1B.
  *
- * Kept in the family deliberately: the extraction numbers in HANDOFF.md were
+ * Kept in the family deliberately: the extraction numbers in docs/process/HANDOFF.md were
  * measured on Granite, and swapping to an unrelated model would have made the
  * before-and-after on the schema change uninterpretable.
  */
