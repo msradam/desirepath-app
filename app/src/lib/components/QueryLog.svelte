@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { queryLog } from '$lib/stores/query-log';
+  import { queryLog, queryReset } from '$lib/stores/query-log';
 
   let now = $state(new Date());
   $effect(() => {
@@ -19,9 +19,23 @@
 
 <div class="query-log" aria-label="Query log">
   <!-- Ink header -->
-  <div class="log-header" aria-hidden="true">
-    <span class="header-left">QUERY LOG · SESSION {sessionTime}</span>
-    <span class="header-right">{$queryLog.length} RECORD{$queryLog.length !== 1 ? 'S' : ''}</span>
+  <div class="log-header">
+    <span class="header-left" aria-hidden="true">QUERY LOG · SESSION {sessionTime}</span>
+    <!--
+      Clearing the record is a demo control, and on a demo it is pressed
+      between every query. It sits in the header rather than under the record,
+      so it is in the same place whether there is one entry or ten.
+    -->
+    {#if $queryLog.length > 0}
+      <button
+        class="log-clear"
+        type="button"
+        onclick={() => ($queryReset ? $queryReset() : queryLog.clear())}
+      >
+        Clear
+      </button>
+    {/if}
+    <span class="header-right" aria-hidden="true">{$queryLog.length} RECORD{$queryLog.length !== 1 ? 'S' : ''}</span>
   </div>
 
   <!-- Entry list -->
@@ -58,11 +72,16 @@
   }
 
   /* Ink header */
+  /* Recessed ground, like every other strip. It was painted with --ink and
+     --bg, which in the old light palette meant black on cream and in this one
+     means bone on slate: the one light bar in a dark app, and a Clear button
+     set in bone on top of it was invisible. */
   .log-header {
     height: 38px;
     flex-shrink: 0;
-    background: var(--ink);
-    color: var(--bg);
+    background: var(--slate-2);
+    color: var(--muted);
+    border-bottom: var(--rule-hair) solid var(--subtle);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -112,6 +131,24 @@
     text-decoration-color: var(--hivis);
     text-underline-offset: 3px;
   }
+
+  .log-clear {
+    margin-left: auto;
+    margin-right: 12px;
+    padding: 3px 9px;
+    min-height: 24px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--bone);
+    background: transparent;
+    border: var(--rule-hair) solid var(--subtle);
+    cursor: pointer;
+  }
+  .log-clear:hover { border-color: var(--hivis); color: var(--hivis); }
+  .log-clear:focus-visible { outline: 3px solid var(--hivis); outline-offset: 2px; }
 
   .entry-num {
     font-family: var(--font-mono);

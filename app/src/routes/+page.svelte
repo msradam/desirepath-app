@@ -33,7 +33,7 @@
   import { weather, transitState, loadPhase, loadMessage, loadProgress, graphStats } from '$lib/stores/feeds';
   import { ttsEnabled } from '$lib/stores/settings';
   import { isochroneMode, activeProfile, routeState } from '$lib/stores/route';
-  import { queryLog, querySubmitFn, queryBusy } from '$lib/stores/query-log';
+  import { queryLog, querySubmitFn, queryBusy, queryReset, queryInput } from '$lib/stores/query-log';
   import type { RouterProfileId } from '$lib/domain/profile';
 
   // Components
@@ -265,6 +265,15 @@
     };
   }
 
+  /** Everything a query put on screen, taken back off it. */
+  function resetScreen() {
+    queryLog.clear();
+    inferred = null;
+    routeState.set({ kind: 'none' });
+    routeMap?.clearMap();
+    queryInput.set('');
+  }
+
   // ── Send handler ──────────────────────────────────────────────────────────
   //
   // All three stages, in one go. Stage 1 reads the sentence into a profile,
@@ -463,10 +472,12 @@
     loadMessage.set('Ready');
     booted = true;
     querySubmitFn.set(handleSend);
+    queryReset.set(resetScreen);
   });
 
   onDestroy(() => {
     querySubmitFn.set(null);
+    queryReset.set(null);
   });
 
   // ── Isochrone mode toggle ─────────────────────────────────────────────────

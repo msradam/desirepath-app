@@ -61,3 +61,13 @@ export const queryInput = writable('');
 // The submit handler. Set by +page.svelte
 export const querySubmitFn = writable<((q: string) => Promise<void>) | null>(null);
 export const queryBusy = writable(false);
+
+/**
+ * Put the screen back to how it started.
+ *
+ * Clearing the log alone left the route card, the disclosure block and the
+ * drawn route on screen, which is a half-reset and no use between two demo
+ * queries. The page owns all of that state, so the page supplies the function
+ * and the log header calls it, the same way it supplies the submit handler.
+ */
+export const queryReset = writable<(() => void) | null>(null);

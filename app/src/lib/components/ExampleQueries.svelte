@@ -54,15 +54,38 @@
   ];
 
   function pick(q: string) { queryInput.set(q); }
+
+  /**
+   * Five, then the rest behind a control.
+   *
+   * The list is fourteen queries long and it is the first thing under the
+   * record, so the whole screen read as a menu. The five that lead are the
+   * ones verified end to end most recently; everything else is still one
+   * click away and nothing was deleted to make room.
+   */
+  const LEAD = 5;
+  let expanded = $state(false);
+  const shown = $derived(expanded ? EXAMPLES : EXAMPLES.slice(0, LEAD));
+  const hidden = EXAMPLES.length - LEAD;
 </script>
 
 <div class="example-wrap">
   <div class="example-eyebrow">Example queries ¶</div>
   <ul class="example-list">
-    {#each EXAMPLES as q}
+    {#each shown as q (q)}
       <li><button class="example-link" onclick={() => pick(q)}>{q}</button></li>
     {/each}
   </ul>
+  {#if hidden > 0}
+    <button
+      class="example-more"
+      type="button"
+      aria-expanded={expanded}
+      onclick={() => (expanded = !expanded)}
+    >
+      {expanded ? 'Show fewer' : `Show ${hidden} more`}
+    </button>
+  {/if}
 </div>
 
 <style>
@@ -78,6 +101,23 @@
     color: var(--muted);
     margin-bottom: 10px;
   }
+
+  .example-more {
+    margin-top: 10px;
+    padding: 6px 10px;
+    min-height: 26px;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--bone);
+    background: transparent;
+    border: var(--rule-hair) solid var(--subtle);
+    cursor: pointer;
+  }
+  .example-more:hover { border-color: var(--hivis); color: var(--hivis); }
+  .example-more:focus-visible { outline: 3px solid var(--hivis); outline-offset: 2px; }
 
   .example-list {
     list-style: none;
