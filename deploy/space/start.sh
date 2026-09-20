@@ -17,8 +17,15 @@ until curl -sf http://127.0.0.1:11434/api/tags >/dev/null 2>&1; do
   sleep 1
 done
 
-# Resident before the first visitor, so nobody pays the load.
-curl -sf http://127.0.0.1:11434/api/generate \
-  -d '{"model":"granite4:micro","keep_alive":"-1"}' >/dev/null 2>&1 || true
+# Resident before the first visitor, so nobody pays the load. In the
+# background, because loading 2.1 GB is slow on a CPU Space and the app has to
+# be listening on $PORT before the platform's startup window closes. The
+# coverage screen needs no model at all, so it should not wait for one.
+(
+  curl -sf http://127.0.0.1:11434/api/generate \
+    -d '{"model":"granite4:micro","keep_alive":"-1"}' >/dev/null 2>&1 \
+    && echo "model resident" \
+    || echo "model warm-up failed; first query will pay the load"
+) &
 
 exec node /app/server.mjs
