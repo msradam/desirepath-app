@@ -1,7 +1,15 @@
 <script lang="ts">
   import { queryInput } from '$lib/stores/query-log';
 
+  // Heat-showing examples first. The thermal model covers five neighbourhoods,
+  // and all five of the originals ran outside every one of them, so the first
+  // thing anybody clicking down this list saw was "not surveyed". The
+  // originals are kept below, because the empty state is worth showing on
+  // purpose.
   const EXAMPLES = [
+    "Rockaway Avenue to Betsy Head Park, I can't handle the heat",
+    '125th Street Library to Abraham Lincoln Playground, I have trouble with heat',
+    'Mott Haven Library to Governor Smith Playground, manual wheelchair',
     "it's 95 degrees out, I'm near Penn Station with a power wheelchair. Find me a cooling center",
     'step-free route from Grand Central to Atlantic Terminal, manual wheelchair',
     'nearest cooling center to 161 Amsterdam Avenue, wheelchair',

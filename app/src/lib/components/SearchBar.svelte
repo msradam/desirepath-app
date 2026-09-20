@@ -4,10 +4,27 @@
   let focused = $state(false);
   let inputEl: HTMLInputElement;
 
-  // Demo queries verified end-to-end against Granite 4.0 1B + the live router.
-  // Top three are the locked demo trio; the next three diversify across
-  // multimodal routing, isochrone reachability, and cross-river ADA transit.
+  // Demo queries verified end-to-end against Granite 4 and the live router.
+  //
+  // ORDER MATTERS. The thermal model covers five neighbourhoods, 7.67% of the
+  // city's edges, and every one of the original six examples ran outside all
+  // of them. So the feature this whole project is about never appeared unless
+  // somebody happened to type a Brownsville address, and the first thing a
+  // visitor saw was "not surveyed".
+  //
+  // The first four now run inside surveyed ground and are drawn from
+  // tests/thermal-cases.json, so the route comes back painted by radiant
+  // temperature. The rest are the original examples, kept because they
+  // exercise multimodal routing, reachability and Spanish, and because
+  // showing the honest empty state is worth doing on purpose rather than by
+  // accident.
   const SUGGESTIONS = [
+    // Inside the thermal model. These show the heat layer working.
+    "Rockaway Avenue to Betsy Head Park, I can't handle the heat",
+    '125th Street Library to Abraham Lincoln Playground, I have trouble with heat',
+    'Mott Haven Library to Governor Smith Playground, manual wheelchair',
+    'Cooling centers within 15 minutes of Tremont Library, I walk slowly',
+    // Outside it. These show the model saying so.
     "I'm in downtown Flushing. Show me cooling centers within walking distance, wheelchair-accessible.",
     "I'm at Union Square. Closest public restroom with audible signals on the route.",
     'Estoy en Jackson Heights, Roosevelt y 74. ¿Dónde está el centro de enfriamiento más cercano?',
