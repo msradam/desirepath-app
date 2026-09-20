@@ -135,8 +135,10 @@ test.describe('profile confirmation card', () => {
     // The map must still be empty: stage 2 has not run.
     await expect(page.locator('.route-strip')).toHaveCount(0);
 
-    // Every field the grammar can emit has a control.
-    await expect(card.locator('input[type="radio"][name$="-intent"]')).toHaveCount(3);
+    // Every field the grammar can emit has a control, and so does the
+    // dispatch, which the grammar no longer emits but the user can still fix.
+    await expect(card.locator('input[type="radio"][name$="-tool"]')).toHaveCount(3);
+    await expect(card).toContainText('Chosen from what you filled in below, not by the model');
     await expect(card.locator('#\\3'.length ? 'input[type="text"]' : 'input')).not.toHaveCount(0);
     await expect(card.locator('.consequence')).toBeVisible();
 

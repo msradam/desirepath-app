@@ -2,7 +2,9 @@
 //
 // This is one of only two stages that touch a model, and it does the smallest
 // possible job: it classifies the user's words into a fixed vocabulary and
-// copies out the place names. It decides nothing about routing. What a
+// copies out the place names. It decides nothing about routing, and since the
+// intent field was removed it no longer decides which router tool runs either:
+// lib/domain/dispatch.ts derives that from the slots this fills in. What a
 // condition implies is written in config/condition-map.yaml, in the open,
 // where a clinician can read it and argue with it.
 //
@@ -82,16 +84,13 @@ function systemPrompt(): string {
     'You read one sentence from a person who wants to walk somewhere in New York City,',
     'and you fill in a form about it. You do not plan the route.',
     '',
-    'intent:',
-    '  plan_route      they named both a start and a destination',
-    '  find_comfort    they want the nearest place of some kind, with no time limit given',
-    '  find_reachable  they asked what they can reach within a stated number of minutes',
-    '',
     'origin: the place they are starting from, copied as they wrote it.',
     'If they did not say, write exactly @me and the app will ask them.',
     'Never invent a starting point.',
     '',
-    'destination: where they are going, or null if they only described a need.',
+    'destination: the named place they are going to, copied as they wrote it.',
+    'Null if they only described a kind of place they need rather than naming one.',
+    '"somewhere cool", "a library", "a cooling center" are needs, not destinations.',
     '',
     `resource_types: zero or more of ${RESOURCE_TYPES.join(', ')}.`,
     '',
@@ -100,7 +99,8 @@ function systemPrompt(): string {
     'condition from a mobility aid, or a mobility need from a health condition.',
     `  ${conditions}`,
     '',
-    'max_minutes: only when they stated a number of minutes. Otherwise null.',
+    'max_minutes: only when they stated a number of minutes they have or want to',
+    'walk for. Otherwise null. Never invent a limit.',
     '',
     'for_someone_else: true when they are planning for another person,',
     'for example "my grandmother" or "my son". The conditions then describe',

@@ -33,11 +33,24 @@ type Case = {
   name: string;
   query: string;
   lang: string;
+  /** The router tool this query should dispatch to. Derived, never decoded. */
+  tool: string;
   adversarial?: boolean;
   note?: string;
   loose?: string[];
   expect: Record<string, unknown>;
 };
+
+/**
+ * Repetitions per fixture. One by default.
+ *
+ * Decoding is at temperature 0, so repetitions only ever measured the decoder's
+ * transient refusal rate, which the counted retry in extraction.ts now covers.
+ * Dispatch correctness, which used to need the model, is deterministic given
+ * the slots and is asserted without inference in tests/unit/extraction.test.ts.
+ * Raise this with EXTRACTION_REPS if the refusal rate is what you are after.
+ */
+const REPS = Number(process.env.EXTRACTION_REPS ?? 1);
 
 const golden = JSON.parse(
   fs.readFileSync(path.join(REPO_ROOT, 'app/tests/extraction-golden.json'), 'utf8'),
@@ -94,10 +107,27 @@ type Outcome = {
   valid: boolean;
   accurate: boolean;
   constrained: boolean;
+  /** Whether the derived dispatch matched the fixture's expected tool. */
+  dispatchRight: boolean;
   wrongFields: string[];
   error?: string;
   ms: number;
 };
+
+/**
+ * The dispatch rule under test, copied rather than imported.
+ *
+ * The spec runs in node against a page bundle; importing $lib here would pull
+ * SvelteKit aliases into the Playwright process. The unit tests assert this
+ * matches lib/domain/dispatch.ts against every fixture, so a divergence is
+ * caught there rather than silently scoring the wrong function here.
+ */
+function dispatchFor(p: Record<string, unknown>): string {
+  if (typeof p.destination === 'string' && p.destination.trim() !== '') return 'plan_route';
+  return p.max_minutes === null || p.max_minutes === undefined
+    ? 'find_comfort_and_route'
+    : 'find_reachable_resources';
+}
 
 function compare(c: Case, got: Record<string, unknown>): string[] {
   const loose = new Set(c.loose ?? []);
@@ -122,47 +152,90 @@ test.describe('stage 1 extraction, real model', () => {
 
     const results: Outcome[] = [];
 
-    for (const c of golden.cases) {
-      const t0 = Date.now();
-      try {
-        const raw = (await extractInPage(page, c.query)) as {
-          profile: Record<string, unknown>;
-          constrained: boolean;
-        };
-        const wrong = compare(c, raw.profile);
-        results.push({
-          case: c,
-          valid: true,
-          accurate: wrong.length === 0,
-          constrained: raw.constrained,
-          wrongFields: wrong,
-          ms: Date.now() - t0,
-        });
-      } catch (e) {
-        results.push({
-          case: c,
-          valid: false,
-          accurate: false,
-          constrained: false,
-          wrongFields: [],
-          error: (e as Error).message,
-          ms: Date.now() - t0,
-        });
+    for (let rep = 0; rep < REPS; rep++) {
+      for (const c of golden.cases) {
+        const t0 = Date.now();
+        try {
+          const raw = (await extractInPage(page, c.query)) as {
+            profile: Record<string, unknown>;
+            constrained: boolean;
+          };
+          const wrong = compare(c, raw.profile);
+          results.push({
+            case: c,
+            valid: true,
+            accurate: wrong.length === 0,
+            constrained: raw.constrained,
+            dispatchRight: dispatchFor(raw.profile) === c.tool,
+            wrongFields: wrong,
+            ms: Date.now() - t0,
+          });
+        } catch (e) {
+          results.push({
+            case: c,
+            valid: false,
+            accurate: false,
+            constrained: false,
+            dispatchRight: false,
+            wrongFields: [],
+            error: (e as Error).message,
+            ms: Date.now() - t0,
+          });
+        }
       }
     }
 
     // ── the table ───────────────────────────────────────────────────────────
     const pad = (s: string, n: number) => s.slice(0, n).padEnd(n);
-    console.log('\n  EXTRACTION, per case');
-    console.log(`  ${pad('case', 52)} ${pad('lang', 5)} valid  exact   ms`);
+    console.log(`\n  EXTRACTION, ${golden.cases.length} fixtures x ${REPS} reps = ${results.length} runs`);
+    console.log(`  ${pad('case', 52)} ${pad('lang', 5)} valid  exact  disp    ms`);
     for (const r of results) {
       console.log(
         `  ${pad(r.case.name, 52)} ${pad(r.case.lang, 5)} ` +
-          `${r.valid ? '  ok ' : ' FAIL'}  ${r.accurate ? ' ok ' : 'miss'}  ${String(r.ms).padStart(5)}`,
+          `${r.valid ? '  ok ' : ' FAIL'}  ${r.accurate ? ' ok ' : 'miss'}  ` +
+          `${r.dispatchRight ? ' ok ' : 'MISS'}  ${String(r.ms).padStart(5)}`,
       );
       for (const w of r.wrongFields) console.log(`      ${w}`);
       if (r.error) console.log(`      error: ${r.error}`);
     }
+
+    // ── field-level misses ──────────────────────────────────────────────────
+    // The number HANDOFF.md carries. Counted over runs, not over fixtures, so
+    // a fixture that is wrong every time counts every time.
+    const fields = ['origin', 'destination', 'resource_types', 'conditions',
+                    'max_minutes', 'for_someone_else'];
+    console.log('\n  FIELD-LEVEL MISSES, over all runs');
+    for (const f of fields) {
+      const scored = results.filter((r) => r.valid && f in r.case.expect && !(r.case.loose ?? []).includes(f));
+      const miss = scored.filter((r) => r.wrongFields.some((w) => w.startsWith(`${f}:`))).length;
+      if (!scored.length) continue;
+      console.log(
+        `  ${pad(f, 20)} ${String(miss).padStart(3)} of ${String(scored.length).padStart(3)}` +
+          ` (${((100 * miss) / scored.length).toFixed(0).padStart(3)}%)`,
+      );
+    }
+
+    // ── the dispatch ────────────────────────────────────────────────────────
+    // This replaces the intent accuracy the model used to be scored on. The
+    // field is gone from the schema; the tool is derived from destination and
+    // max_minutes, so this measures whether those two slots were right.
+    const scoredDispatch = results.filter((r) => r.valid);
+    const rightDispatch = scoredDispatch.filter((r) => r.dispatchRight).length;
+    const byTool = new Map<string, number>();
+    for (const c of golden.cases) byTool.set(c.tool, (byTool.get(c.tool) ?? 0) + 1);
+    const majority = Math.max(...byTool.values()) / golden.cases.length;
+    console.log('\n  DISPATCH');
+    console.log(
+      `  correct in ${rightDispatch} of ${scoredDispatch.length} runs ` +
+        `(${((100 * rightDispatch) / scoredDispatch.length).toFixed(1)}%)`,
+    );
+    console.log(`  majority-class baseline would score ${(100 * majority).toFixed(1)}%`);
+    for (const [tool, n] of [...byTool].sort()) console.log(`    ${pad(tool, 26)} ${n} fixtures`);
+
+    const exactFixtures = golden.cases.filter((c) =>
+      results.filter((r) => r.case === c).every((r) => r.accurate),
+    );
+    console.log(`\n  exactly right on every rep: ${exactFixtures.length} of ${golden.cases.length} fixtures`);
 
     const byLang = new Map<string, Outcome[]>();
     for (const r of results) {

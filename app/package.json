@@ -14,7 +14,8 @@
     "route": "tsx scripts/route-cli.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:a11y": "playwright test tests/a11y"
+    "test:a11y": "playwright test tests/a11y",
+    "extract": "tsx scripts/extract-cli.ts"
   },
   "dependencies": {
     "@huggingface/inference": "^4.13.15",

@@ -18,7 +18,6 @@ export const PROFILE_SCHEMA = {
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "intent",
     "origin",
     "destination",
     "resource_types",
@@ -27,13 +26,6 @@ export const PROFILE_SCHEMA = {
     "for_someone_else"
   ],
   "properties": {
-    "intent": {
-      "enum": [
-        "plan_route",
-        "find_comfort",
-        "find_reachable"
-      ]
-    },
     "origin": {
       "type": "string"
     },
@@ -99,14 +91,14 @@ export const PROFILE_SCHEMA = {
 };
 
 /** Serialised for web-llm's `response_format.schema`, which takes a string. */
-export const PROFILE_SCHEMA_JSON = "{\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"intent\", \"origin\", \"destination\", \"resource_types\", \"conditions\", \"max_minutes\", \"for_someone_else\"], \"properties\": {\"intent\": {\"enum\": [\"plan_route\", \"find_comfort\", \"find_reachable\"]}, \"origin\": {\"type\": \"string\"}, \"destination\": {\"type\": [\"string\", \"null\"]}, \"resource_types\": {\"type\": \"array\", \"items\": {\"enum\": [\"cool_indoor\", \"warm_indoor\", \"bathroom\", \"quiet_indoor\", \"wifi_power\", \"shelter_24h\", \"pool_indoor\", \"seating\", \"linknyc\", \"food_pantry\", \"senior_center\", \"harm_reduction\", \"medical\", \"mental_health\", \"community_center\"]}}, \"conditions\": {\"type\": \"array\", \"items\": {\"enum\": [\"heat_sensitivity_moderate\", \"heat_sensitivity_high\", \"impaired_sweating\", \"cardiovascular_strain\", \"respiratory_limitation\", \"uv_sensitivity_high\", \"medication_heat_risk\", \"older_adult\", \"young_child\", \"pregnancy\", \"mobility_wheelchair\", \"mobility_slow\", \"low_vision\"]}}, \"max_minutes\": {\"type\": [\"integer\", \"null\"], \"minimum\": 1}, \"for_someone_else\": {\"type\": \"boolean\"}}}";
+export const PROFILE_SCHEMA_JSON = "{\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"origin\", \"destination\", \"resource_types\", \"conditions\", \"max_minutes\", \"for_someone_else\"], \"properties\": {\"origin\": {\"type\": \"string\"}, \"destination\": {\"type\": [\"string\", \"null\"]}, \"resource_types\": {\"type\": \"array\", \"items\": {\"enum\": [\"cool_indoor\", \"warm_indoor\", \"bathroom\", \"quiet_indoor\", \"wifi_power\", \"shelter_24h\", \"pool_indoor\", \"seating\", \"linknyc\", \"food_pantry\", \"senior_center\", \"harm_reduction\", \"medical\", \"mental_health\", \"community_center\"]}}, \"conditions\": {\"type\": \"array\", \"items\": {\"enum\": [\"heat_sensitivity_moderate\", \"heat_sensitivity_high\", \"impaired_sweating\", \"cardiovascular_strain\", \"respiratory_limitation\", \"uv_sensitivity_high\", \"medication_heat_risk\", \"older_adult\", \"young_child\", \"pregnancy\", \"mobility_wheelchair\", \"mobility_slow\", \"low_vision\"]}}, \"max_minutes\": {\"type\": [\"integer\", \"null\"], \"minimum\": 1}, \"for_someone_else\": {\"type\": \"boolean\"}}}";
 
 /**
  * The equivalent EBNF, kept for documentation and for the unit tests that
  * assert the vocabulary is exactly the condition map's. Not what ships to the
  * decoder; see PROFILE_SCHEMA.
  */
-export const PROFILE_GRAMMAR = "# Profile object. Generated; see pipeline/thermal/grammar.py\nroot ::= \"{\" ws\n  \"\\\"intent\\\"\" ws \":\" ws intent ws \",\" ws\n  \"\\\"origin\\\"\" ws \":\" ws string ws \",\" ws\n  \"\\\"destination\\\"\" ws \":\" ws nullable-string ws \",\" ws\n  \"\\\"resource_types\\\"\" ws \":\" ws resource-array ws \",\" ws\n  \"\\\"conditions\\\"\" ws \":\" ws condition-array ws \",\" ws\n  \"\\\"max_minutes\\\"\" ws \":\" ws nullable-int ws \",\" ws\n  \"\\\"for_someone_else\\\"\" ws \":\" ws boolean ws\n\"}\"\n\nintent ::= \"\\\"plan_route\\\"\" | \"\\\"find_comfort\\\"\" | \"\\\"find_reachable\\\"\"\n\nresource ::= \"\\\"cool_indoor\\\"\" | \"\\\"warm_indoor\\\"\" | \"\\\"bathroom\\\"\" | \"\\\"quiet_indoor\\\"\" | \"\\\"wifi_power\\\"\" | \"\\\"shelter_24h\\\"\" | \"\\\"pool_indoor\\\"\" | \"\\\"seating\\\"\" | \"\\\"linknyc\\\"\" | \"\\\"food_pantry\\\"\" | \"\\\"senior_center\\\"\" | \"\\\"harm_reduction\\\"\" | \"\\\"medical\\\"\" | \"\\\"mental_health\\\"\" | \"\\\"community_center\\\"\"\nresource-array ::= \"[\" ws \"]\" | \"[\" ws resource (ws \",\" ws resource)* ws \"]\"\n\ncondition ::= \"\\\"heat_sensitivity_moderate\\\"\" | \"\\\"heat_sensitivity_high\\\"\" | \"\\\"impaired_sweating\\\"\" | \"\\\"cardiovascular_strain\\\"\" | \"\\\"respiratory_limitation\\\"\" | \"\\\"uv_sensitivity_high\\\"\" | \"\\\"medication_heat_risk\\\"\" | \"\\\"older_adult\\\"\" | \"\\\"young_child\\\"\" | \"\\\"pregnancy\\\"\" | \"\\\"mobility_wheelchair\\\"\" | \"\\\"mobility_slow\\\"\" | \"\\\"low_vision\\\"\"\ncondition-array ::= \"[\" ws \"]\" | \"[\" ws condition (ws \",\" ws condition)* ws \"]\"\n\nnullable-string ::= \"null\" | string\nnullable-int ::= \"null\" | integer\nboolean ::= \"true\" | \"false\"\n\n# A place name the user typed. Free text by necessity, but still a well-formed\n# JSON string: the grammar cannot know every street in New York, so the\n# geocoder validates this field and the confirmation card shows what it\n# resolved to before anything routes.\nstring ::= \"\\\"\" char* \"\\\"\"\nchar ::= [^\"\\\\\\x00-\\x1F] | \"\\\\\" [\"\\\\/bfnrt]\n\ninteger ::= [1-9] [0-9]{0,2}\n\nws ::= [ \\t\\n]*\n";
+export const PROFILE_GRAMMAR = "# Profile object. Generated; see pipeline/thermal/grammar.py\nroot ::= \"{\" ws\n  \"\\\"origin\\\"\" ws \":\" ws string ws \",\" ws\n  \"\\\"destination\\\"\" ws \":\" ws nullable-string ws \",\" ws\n  \"\\\"resource_types\\\"\" ws \":\" ws resource-array ws \",\" ws\n  \"\\\"conditions\\\"\" ws \":\" ws condition-array ws \",\" ws\n  \"\\\"max_minutes\\\"\" ws \":\" ws nullable-int ws \",\" ws\n  \"\\\"for_someone_else\\\"\" ws \":\" ws boolean ws\n\"}\"\n\nresource ::= \"\\\"cool_indoor\\\"\" | \"\\\"warm_indoor\\\"\" | \"\\\"bathroom\\\"\" | \"\\\"quiet_indoor\\\"\" | \"\\\"wifi_power\\\"\" | \"\\\"shelter_24h\\\"\" | \"\\\"pool_indoor\\\"\" | \"\\\"seating\\\"\" | \"\\\"linknyc\\\"\" | \"\\\"food_pantry\\\"\" | \"\\\"senior_center\\\"\" | \"\\\"harm_reduction\\\"\" | \"\\\"medical\\\"\" | \"\\\"mental_health\\\"\" | \"\\\"community_center\\\"\"\nresource-array ::= \"[\" ws \"]\" | \"[\" ws resource (ws \",\" ws resource)* ws \"]\"\n\ncondition ::= \"\\\"heat_sensitivity_moderate\\\"\" | \"\\\"heat_sensitivity_high\\\"\" | \"\\\"impaired_sweating\\\"\" | \"\\\"cardiovascular_strain\\\"\" | \"\\\"respiratory_limitation\\\"\" | \"\\\"uv_sensitivity_high\\\"\" | \"\\\"medication_heat_risk\\\"\" | \"\\\"older_adult\\\"\" | \"\\\"young_child\\\"\" | \"\\\"pregnancy\\\"\" | \"\\\"mobility_wheelchair\\\"\" | \"\\\"mobility_slow\\\"\" | \"\\\"low_vision\\\"\"\ncondition-array ::= \"[\" ws \"]\" | \"[\" ws condition (ws \",\" ws condition)* ws \"]\"\n\nnullable-string ::= \"null\" | string\nnullable-int ::= \"null\" | integer\nboolean ::= \"true\" | \"false\"\n\n# A place name the user typed. Free text by necessity, but still a well-formed\n# JSON string: the grammar cannot know every street in New York, so the\n# geocoder validates this field and the confirmation card shows what it\n# resolved to before anything routes.\nstring ::= \"\\\"\" char* \"\\\"\"\nchar ::= [^\"\\\\\\x00-\\x1F] | \"\\\\\" [\"\\\\/bfnrt]\n\ninteger ::= [1-9] [0-9]{0,2}\n\nws ::= [ \\t\\n]*\n";
 
 /** Condition vocabulary, in the order config/condition-map.yaml declares it. */
 export const CONDITION_TERMS = [
@@ -160,24 +152,23 @@ export const RESOURCE_TYPES = [
   "community_center"
 ] as const;
 
-export const INTENTS = [
-  "plan_route",
-  "find_comfort",
-  "find_reachable"
-] as const;
-
 export type ConditionTerm = (typeof CONDITION_TERMS)[number];
 export type ResourceType = (typeof RESOURCE_TYPES)[number];
-export type Intent = (typeof INTENTS)[number];
 
 /**
  * The profile object stage 1 produces and the confirmation card edits.
  *
  * Every field is required. An omitted constraint and a constraint the user did
  * not give must not look the same, so absence is spelled null or [].
+ *
+ * There is no intent field. Which of the three router tools to call is derived
+ * from these slots by lib/domain/dispatch.ts, not decoded. The decoder emits
+ * keys in schema order, so an intent field would have been generated before
+ * the destination and the time budget it depends on: the model had to commit
+ * to a classification before reading out the evidence for it, and it was wrong
+ * in 65 percent of runs.
  */
 export type TravelProfile = {
-  intent: Intent;
   origin: string;
   destination: string | null;
   resource_types: ResourceType[];
@@ -199,7 +190,6 @@ export function validateProfile(value: unknown): { ok: true; profile: TravelProf
   const v = value as Record<string, unknown>;
   if (typeof v !== 'object' || v === null) return { ok: false, errors: ['not an object'] };
 
-  if (!INTENTS.includes(v.intent as Intent)) errors.push(`intent: ${JSON.stringify(v.intent)}`);
   if (typeof v.origin !== 'string') errors.push('origin must be a string');
   if (!(v.destination === null || typeof v.destination === 'string')) errors.push('destination must be a string or null');
   if (!Array.isArray(v.resource_types) || v.resource_types.some((r) => !RESOURCE_TYPES.includes(r as ResourceType))) {

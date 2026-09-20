@@ -12,10 +12,11 @@
   import {
     CONDITION_LABELS,
     CONDITION_TERMS,
-    INTENTS,
     RESOURCE_TYPES,
   } from '$lib/domain/profile-grammar';
-  import type { Intent, TravelProfile } from '$lib/domain/profile-grammar';
+  import type { TravelProfile } from '$lib/domain/profile-grammar';
+  import { TOOLS, TOOL_LABELS, dispatchFor } from '$lib/domain/dispatch';
+  import type { Tool } from '$lib/domain/dispatch';
   import { CONDITION_DEFAULTS, CONDITION_EFFECTS, CONDITION_MAP_VERSION } from '$lib/domain/condition-effects';
   import { resolveEffects } from '$lib/services/extraction';
 
@@ -33,15 +34,9 @@
     query?: string;
     /** Whether stage 1 was grammar-constrained. Always true in shipped code. */
     constrained?: boolean;
-    onaccept?: (p: TravelProfile) => void;
+    onaccept?: (p: TravelProfile, tool: Tool) => void;
     oncancel?: () => void;
   } = $props();
-
-  const INTENT_LABELS: Record<string, string> = {
-    plan_route: 'Route between two places',
-    find_comfort: 'Find the nearest',
-    find_reachable: 'What can I reach',
-  };
 
   const ROUTER_LABELS: Record<string, string> = {
     generic_pedestrian: 'Walking, no mobility constraint stated',
@@ -58,6 +53,15 @@
   let edits = $state.raw<Edits | null>(null);
 
   const draft = $derived(edits && edits.of === profile ? edits.value : { ...profile });
+
+  // The tool is derived from the slots, not decoded. An override is held
+  // separately and against the same profile, so a new extraction drops it
+  // rather than carrying a choice that belonged to a different sentence, and
+  // so that editing the destination moves the derived answer while the user
+  // has not said otherwise.
+  let override = $state.raw<{ of: TravelProfile; tool: Tool } | null>(null);
+  const derivedTool = $derived(dispatchFor(draft));
+  const tool = $derived(override && override.of === profile ? override.tool : derivedTool);
 
   function set<K extends keyof TravelProfile>(key: K, value: TravelProfile[K]) {
     edits = { of: profile, value: { ...draft, [key]: value } };
@@ -114,19 +118,27 @@
     <fieldset class="group">
       <legend>What you are asking for</legend>
       <div class="segments">
-        {#each INTENTS as value (value)}
-          <label class="segment" class:on={draft.intent === value}>
+        {#each TOOLS as value (value)}
+          <label class="segment" class:on={tool === value}>
             <input
               type="radio"
-              name="{uid}-intent"
+              name="{uid}-tool"
               {value}
-              checked={draft.intent === value}
-              onchange={() => set('intent', value as Intent)}
+              checked={tool === value}
+              onchange={() => (override = { of: profile, tool: value })}
             />
-            <span>{INTENT_LABELS[value]}</span>
+            <span>{TOOL_LABELS[value]}</span>
           </label>
         {/each}
       </div>
+      <p class="note">
+        {#if tool === derivedTool}
+          Chosen from what you filled in below, not by the model. Change it here if it is wrong.
+        {:else}
+          You changed this. It would otherwise be
+          <em>{TOOL_LABELS[derivedTool]}</em>, from what you filled in below.
+        {/if}
+      </p>
     </fieldset>
 
     <div class="places">
@@ -176,10 +188,12 @@
           oninput={(e) => set('max_minutes', readMinutes(e.currentTarget))}
         />
         <p class="note" id="{uid}-minutes-note">
-          {#if draft.intent === 'find_reachable'}
+          {#if tool === 'find_reachable_resources'}
             This is the time budget the reachable area is drawn from.
+          {:else if draft.destination}
+            Not used: you named a destination, so the route goes there.
           {:else}
-            This is not used for the request selected above. It applies to "What can I reach".
+            Give a number and the request becomes "What can I reach".
           {/if}
         </p>
       </div>
@@ -297,7 +311,7 @@
   </div>
 
   <div class="actions">
-    <button class="accept" type="button" disabled={originUnresolved} onclick={() => onaccept?.(draft)}>
+    <button class="accept" type="button" disabled={originUnresolved} onclick={() => onaccept?.(draft, tool)}>
       Accept and plan
     </button>
     <button class="cancel" type="button" onclick={() => oncancel?.()}>Cancel</button>

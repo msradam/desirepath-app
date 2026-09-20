@@ -5,8 +5,8 @@
       "name": "english, both endpoints, no conditions",
       "query": "Penn Station to Grand Central",
       "lang": "en",
+      "tool": "plan_route",
       "expect": {
-        "intent": "plan_route",
         "origin": "Penn Station",
         "destination": "Grand Central",
         "resource_types": [],
@@ -19,12 +19,14 @@
       "name": "english, wheelchair",
       "query": "Penn Station to Grand Central, wheelchair",
       "lang": "en",
+      "tool": "plan_route",
       "expect": {
-        "intent": "plan_route",
         "origin": "Penn Station",
         "destination": "Grand Central",
         "resource_types": [],
-        "conditions": ["mobility_wheelchair"],
+        "conditions": [
+          "mobility_wheelchair"
+        ],
         "max_minutes": null,
         "for_someone_else": false
       }
@@ -33,12 +35,17 @@
       "name": "english, need with no time budget",
       "query": "I'm in Brownsville and I need somewhere cool to sit down",
       "lang": "en",
-      "loose": ["origin"],
+      "tool": "find_comfort_and_route",
+      "loose": [
+        "origin"
+      ],
       "expect": {
-        "intent": "find_comfort",
         "origin": "Brownsville",
         "destination": null,
-        "resource_types": ["cool_indoor", "seating"],
+        "resource_types": [
+          "cool_indoor",
+          "seating"
+        ],
         "conditions": [],
         "max_minutes": null,
         "for_someone_else": false
@@ -48,12 +55,16 @@
       "name": "english, stated time budget",
       "query": "What cooling centers can I reach from Rockaway Avenue in 15 minutes?",
       "lang": "en",
-      "loose": ["origin"],
+      "tool": "find_reachable_resources",
+      "loose": [
+        "origin"
+      ],
       "expect": {
-        "intent": "find_reachable",
         "origin": "Rockaway Avenue",
         "destination": null,
-        "resource_types": ["cool_indoor"],
+        "resource_types": [
+          "cool_indoor"
+        ],
         "conditions": [],
         "max_minutes": 15,
         "for_someone_else": false
@@ -63,13 +74,19 @@
       "name": "english, heat sensitivity stated plainly",
       "query": "I can't handle the heat. Nearest library from Sutter Avenue.",
       "lang": "en",
-      "loose": ["origin"],
+      "tool": "find_comfort_and_route",
+      "loose": [
+        "origin"
+      ],
       "expect": {
-        "intent": "find_comfort",
         "origin": "Sutter Avenue",
         "destination": null,
-        "resource_types": ["quiet_indoor"],
-        "conditions": ["heat_sensitivity_high"],
+        "resource_types": [
+          "quiet_indoor"
+        ],
+        "conditions": [
+          "heat_sensitivity_high"
+        ],
         "max_minutes": null,
         "for_someone_else": false
       }
@@ -78,13 +95,18 @@
       "name": "english, medical condition affecting thermoregulation",
       "query": "I have a spinal cord injury and I don't sweat. From Junius Street to Betsy Head Park.",
       "lang": "en",
-      "loose": ["origin", "destination"],
+      "tool": "plan_route",
+      "loose": [
+        "origin",
+        "destination"
+      ],
       "expect": {
-        "intent": "plan_route",
         "origin": "Junius Street",
         "destination": "Betsy Head Park",
         "resource_types": [],
-        "conditions": ["impaired_sweating"],
+        "conditions": [
+          "impaired_sweating"
+        ],
         "max_minutes": null,
         "for_someone_else": false
       }
@@ -93,13 +115,18 @@
       "name": "spanish, both endpoints",
       "query": "De Penn Station a Grand Central, en silla de ruedas",
       "lang": "es",
-      "loose": ["origin", "destination"],
+      "tool": "plan_route",
+      "loose": [
+        "origin",
+        "destination"
+      ],
       "expect": {
-        "intent": "plan_route",
         "origin": "Penn Station",
         "destination": "Grand Central",
         "resource_types": [],
-        "conditions": ["mobility_wheelchair"],
+        "conditions": [
+          "mobility_wheelchair"
+        ],
         "max_minutes": null,
         "for_someone_else": false
       }
@@ -108,13 +135,19 @@
       "name": "spanish, need with origin",
       "query": "Estoy en Brownsville. Necesito un lugar fresco, no aguanto el calor.",
       "lang": "es",
-      "loose": ["origin"],
+      "tool": "find_comfort_and_route",
+      "loose": [
+        "origin"
+      ],
       "expect": {
-        "intent": "find_comfort",
         "origin": "Brownsville",
         "destination": null,
-        "resource_types": ["cool_indoor"],
-        "conditions": ["heat_sensitivity_high"],
+        "resource_types": [
+          "cool_indoor"
+        ],
+        "conditions": [
+          "heat_sensitivity_high"
+        ],
         "max_minutes": null,
         "for_someone_else": false
       }
@@ -123,12 +156,16 @@
       "name": "spanish, stated time budget",
       "query": "Que centros de enfriamiento puedo alcanzar desde Sutter Avenue en 20 minutos?",
       "lang": "es",
-      "loose": ["origin"],
+      "tool": "find_reachable_resources",
+      "loose": [
+        "origin"
+      ],
       "expect": {
-        "intent": "find_reachable",
         "origin": "Sutter Avenue",
         "destination": null,
-        "resource_types": ["cool_indoor"],
+        "resource_types": [
+          "cool_indoor"
+        ],
         "conditions": [],
         "max_minutes": 20,
         "for_someone_else": false
@@ -136,47 +173,61 @@
     },
     {
       "name": "adversarial: third party",
-      "adversarial": true,
-      "note": "The conditions describe the grandmother, not the speaker. for_someone_else must be true or the route is planned for the wrong body.",
       "query": "My grandmother is 82 and has heart failure. She needs to get from Mott Haven Library to Governor Smith Playground.",
       "lang": "en",
-      "loose": ["origin", "destination"],
+      "tool": "plan_route",
+      "adversarial": true,
+      "note": "The conditions describe the grandmother, not the speaker. for_someone_else must be true or the route is planned for the wrong body.",
+      "loose": [
+        "origin",
+        "destination"
+      ],
       "expect": {
-        "intent": "plan_route",
         "origin": "Mott Haven Library",
         "destination": "Governor Smith Playground",
         "resource_types": [],
-        "conditions": ["older_adult", "cardiovascular_strain"],
+        "conditions": [
+          "older_adult",
+          "cardiovascular_strain"
+        ],
         "max_minutes": null,
         "for_someone_else": true
       }
     },
     {
       "name": "adversarial: contradictory constraints",
-      "adversarial": true,
-      "note": "Asking for the fastest route while stating a condition that buys detours. The extraction must record the condition; resolving the tension is the confirmation card's job, not the model's.",
       "query": "Fastest possible route from Tremont Library to Bathgate Playground, but I get heat exhaustion easily",
       "lang": "en",
-      "loose": ["origin", "destination"],
+      "tool": "plan_route",
+      "adversarial": true,
+      "note": "Asking for the fastest route while stating a condition that buys detours. The extraction must record the condition; resolving the tension is the confirmation card's job, not the model's.",
+      "loose": [
+        "origin",
+        "destination"
+      ],
       "expect": {
-        "intent": "plan_route",
         "origin": "Tremont Library",
         "destination": "Bathgate Playground",
         "resource_types": [],
-        "conditions": ["heat_sensitivity_high"],
+        "conditions": [
+          "heat_sensitivity_high"
+        ],
         "max_minutes": null,
         "for_someone_else": false
       }
     },
     {
       "name": "adversarial: empty query",
-      "adversarial": true,
-      "note": "Nothing to extract. The grammar still forces a well-formed object, and origin must be the @me sentinel rather than an invented place.",
       "query": "",
       "lang": "en",
-      "loose": ["destination", "resource_types", "intent"],
+      "tool": "find_comfort_and_route",
+      "adversarial": true,
+      "note": "Nothing to extract. The grammar still forces a well-formed object, and origin must be the @me sentinel rather than an invented place.",
+      "loose": [
+        "destination",
+        "resource_types"
+      ],
       "expect": {
-        "intent": "find_comfort",
         "origin": "@me",
         "destination": null,
         "resource_types": [],
@@ -187,15 +238,17 @@
     },
     {
       "name": "adversarial: no origin given",
-      "adversarial": true,
-      "note": "The model must not invent a starting point. Anything other than @me here is a fabrication that would route somebody from a place they are not.",
       "query": "find me a cooling center",
       "lang": "en",
+      "tool": "find_comfort_and_route",
+      "adversarial": true,
+      "note": "The model must not invent a starting point. Anything other than @me here is a fabrication that would route somebody from a place they are not.",
       "expect": {
-        "intent": "find_comfort",
         "origin": "@me",
         "destination": null,
-        "resource_types": ["cool_indoor"],
+        "resource_types": [
+          "cool_indoor"
+        ],
         "conditions": [],
         "max_minutes": null,
         "for_someone_else": false
@@ -203,50 +256,65 @@
     },
     {
       "name": "adversarial: mobility aid must not imply a health condition",
-      "adversarial": true,
-      "note": "A wheelchair user is not thereby heat sensitive. The condition map says so explicitly. Inferring impaired_sweating here would be the model doing medicine.",
       "query": "wheelchair route from Livonia Avenue to Betsy Head Park",
       "lang": "en",
-      "loose": ["origin", "destination"],
+      "tool": "plan_route",
+      "adversarial": true,
+      "note": "A wheelchair user is not thereby heat sensitive. The condition map says so explicitly. Inferring impaired_sweating here would be the model doing medicine.",
+      "loose": [
+        "origin",
+        "destination"
+      ],
       "expect": {
-        "intent": "plan_route",
         "origin": "Livonia Avenue",
         "destination": "Betsy Head Park",
         "resource_types": [],
-        "conditions": ["mobility_wheelchair"],
+        "conditions": [
+          "mobility_wheelchair"
+        ],
         "max_minutes": null,
         "for_someone_else": false
       }
     },
     {
       "name": "adversarial: condition outside the vocabulary",
-      "adversarial": true,
-      "note": "Diabetes is not in the condition map. The grammar makes it unemittable, so the correct output records the conditions that ARE in the vocabulary and drops the rest. The confirmation card is where the user sees what was not captured.",
       "query": "I'm diabetic and pregnant, from Queens Public Library at Corona to Park of the Americas",
       "lang": "en",
-      "loose": ["origin", "destination"],
+      "tool": "plan_route",
+      "adversarial": true,
+      "note": "Diabetes is not in the condition map. The grammar makes it unemittable, so the correct output records the conditions that ARE in the vocabulary and drops the rest. The confirmation card is where the user sees what was not captured.",
+      "loose": [
+        "origin",
+        "destination"
+      ],
       "expect": {
-        "intent": "plan_route",
         "origin": "Queens Public Library at Corona",
         "destination": "Park of the Americas",
         "resource_types": [],
-        "conditions": ["pregnancy"],
+        "conditions": [
+          "pregnancy"
+        ],
         "max_minutes": null,
         "for_someone_else": false
       }
     },
     {
       "name": "adversarial: bengali, a language the model handles badly",
-      "adversarial": true,
-      "note": "Bengali is a household language in several of the highest Heat Vulnerability Index neighbourhoods. A 1B quantised model is weak here and this case exists to measure that, not to be tuned away. Whatever it scores goes in the handoff table.",
       "query": "আমি ব্রাউন্সভিলে আছি, আমার ঠান্ডা জায়গা দরকার",
       "lang": "bn",
-      "loose": ["origin", "resource_types"],
+      "tool": "find_comfort_and_route",
+      "adversarial": true,
+      "note": "Bengali is a household language in several of the highest Heat Vulnerability Index neighbourhoods. A 1B quantised model is weak here and this case exists to measure that, not to be tuned away. Whatever it scores goes in the handoff table.",
+      "loose": [
+        "origin",
+        "resource_types"
+      ],
       "expect": {
-        "intent": "find_comfort",
         "origin": "Brownsville",
         "destination": null,
-        "resource_types": ["cool_indoor"],
+        "resource_types": [
+          "cool_indoor"
+        ],
         "conditions": [],
         "max_minutes": null,
         "for_someone_else": false
@@ -254,16 +322,21 @@
     },
     {
       "name": "adversarial: haitian creole, a language the model handles badly",
-      "adversarial": true,
-      "note": "Same reason as the Bengali case. Measured and reported, not hidden.",
       "query": "Mwen nan Brownsville, mwen bezwen yon kote ki fre",
       "lang": "ht",
-      "loose": ["origin", "resource_types"],
+      "tool": "find_comfort_and_route",
+      "adversarial": true,
+      "note": "Same reason as the Bengali case. Measured and reported, not hidden.",
+      "loose": [
+        "origin",
+        "resource_types"
+      ],
       "expect": {
-        "intent": "find_comfort",
         "origin": "Brownsville",
         "destination": null,
-        "resource_types": ["cool_indoor"],
+        "resource_types": [
+          "cool_indoor"
+        ],
         "conditions": [],
         "max_minutes": null,
         "for_someone_else": false

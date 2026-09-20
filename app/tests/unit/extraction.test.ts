@@ -28,6 +28,7 @@ import {
 } from '../../src/lib/domain/profile-grammar';
 import { CONDITION_DEFAULTS, CONDITION_EFFECTS, CONDITION_MAP_VERSION } from '../../src/lib/domain/condition-effects';
 import { resolveEffects } from '../../src/lib/services/extraction';
+import { TOOLS, TOOL_LABELS, dispatchFor } from '../../src/lib/domain/dispatch';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -41,7 +42,7 @@ const conditionMap = yaml.load(
 
 const golden = JSON.parse(
   fs.readFileSync(path.join(REPO_ROOT, 'app/tests/extraction-golden.json'), 'utf8'),
-) as { cases: Array<{ name: string; query: string; lang: string; adversarial?: boolean; note?: string; loose?: string[]; expect: Record<string, unknown> }> };
+) as { cases: Array<{ name: string; query: string; lang: string; tool: 'plan_route' | 'find_comfort_and_route' | 'find_reachable_resources'; adversarial?: boolean; note?: string; loose?: string[]; expect: Record<string, unknown> }> };
 
 describe('the grammar is generated from the condition map', () => {
   it('is in step with config/condition-map.yaml', () => {
@@ -67,8 +68,18 @@ describe('the grammar is generated from the condition map', () => {
     }
   });
 
+  it('cannot emit an intent field, because dispatch is derived not decoded', () => {
+    // The decoder generates keys in schema order, so an intent field would be
+    // produced before the destination and time budget that are the only
+    // evidence for it. lib/domain/dispatch.ts derives it afterwards instead.
+    expect(PROFILE_GRAMMAR).not.toContain('intent');
+    for (const value of ['plan_route', 'find_comfort', 'find_reachable']) {
+      expect(PROFILE_GRAMMAR, `${value} should not be emittable`).not.toContain(value);
+    }
+  });
+
   it('constrains every field of the profile', () => {
-    for (const field of ['intent', 'origin', 'destination', 'resource_types',
+    for (const field of ['origin', 'destination', 'resource_types',
                          'conditions', 'max_minutes', 'for_someone_else']) {
       expect(PROFILE_GRAMMAR).toContain(`\\"${field}\\"`);
     }
@@ -121,7 +132,7 @@ describe('every golden fixture is schema-valid', () => {
 
 describe('validateProfile rejects what the grammar would have prevented', () => {
   const ok = {
-    intent: 'plan_route', origin: 'Penn Station', destination: 'Grand Central',
+    origin: 'Penn Station', destination: 'Grand Central',
     resource_types: [], conditions: [], max_minutes: null, for_someone_else: false,
   };
 
@@ -132,10 +143,6 @@ describe('validateProfile rejects what the grammar would have prevented', () => 
   it('rejects a condition outside the vocabulary', () => {
     const r = validateProfile({ ...ok, conditions: ['diabetes'] });
     expect(r.ok).toBe(false);
-  });
-
-  it('rejects an unknown intent', () => {
-    expect(validateProfile({ ...ok, intent: 'teleport' }).ok).toBe(false);
   });
 
   it('rejects a resource type outside the enum', () => {
@@ -210,5 +217,31 @@ describe('resolveEffects follows the condition map', () => {
 
   it('records which terms produced the effects, for the receipt', () => {
     expect(resolve(['pregnancy', 'older_adult']).from).toEqual(['pregnancy', 'older_adult']);
+  });
+});
+
+describe('dispatch is derived from the slots, not decoded', () => {
+  // The mapping has to reproduce every fixture's expected tool from nothing
+  // but destination and max_minutes. If it cannot, removing the field from
+  // the schema lost information rather than removing a bad guess.
+  for (const c of golden.cases) {
+    it(c.name, () => {
+      expect(dispatchFor(c.expect as { destination: string | null; max_minutes: number | null }))
+        .toBe(c.tool);
+    });
+  }
+
+  it('reads a blank destination as no destination', () => {
+    // The card writes null for an emptied field, but a model can emit "".
+    expect(dispatchFor({ destination: '', max_minutes: null })).toBe('find_comfort_and_route');
+    expect(dispatchFor({ destination: '  ', max_minutes: 15 })).toBe('find_reachable_resources');
+  });
+
+  it('prefers a named destination over a time budget', () => {
+    expect(dispatchFor({ destination: 'Betsy Head Park', max_minutes: 15 })).toBe('plan_route');
+  });
+
+  it('labels every tool for the card', () => {
+    for (const t of TOOLS) expect(TOOL_LABELS[t], `${t} has no label`).toBeTruthy();
   });
 });

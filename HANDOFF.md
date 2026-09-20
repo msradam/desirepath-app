@@ -105,7 +105,16 @@ elaborate it gets.
 
 ## 3. Extraction, measured against the real model
 
-17 golden fixtures, run in a real browser against Granite 4.0 1B on WebGPU.
+17 golden fixtures. The numbers below were measured in a real browser against
+Granite 4.0 1B on WebGPU, which was the only way to run stage 1 at the time.
+
+**Stage 1 now runs against Granite 4 in Ollama on the same machine**, through the same
+`LLMAdapter` interface and the same generated schema. Ollama compiles the schema to GBNF
+and masks the sampler with it, so the constraint is the same guarantee by the same
+mechanism. `npm run extract` runs the whole battery from node in about 30 seconds with no
+browser and no GPU contention; the WebGPU path is still in the repo and still works, at
+`?llm=webgpu`. The sentence goes to localhost either way and the privacy log says so in
+those words rather than claiming nothing leaves the browser.
 
 ### The guarantee holds
 
@@ -157,6 +166,36 @@ plan_route 8, find_comfort 7, find_reachable 2. Always answering `plan_route` wo
 The failure is systematic, not noisy. Across all 17 fixtures the model predicted
 `find_reachable` 11 times and `find_comfort` 6 times, and **never once predicted
 `plan_route`**, which is the most common true class.
+
+### Why intent was wrong, and what replaced it
+
+The cause was in the schema, not in the model. XGrammar generates keys in the order the
+schema declares them, and `intent` was declared first. Reading the emitted key order back
+off a live extraction shows it directly:
+
+```
+emittedKeyOrder: ["intent","origin","destination","resource_types",
+                  "conditions","max_minutes","for_someone_else"]
+raw: {"intent": "find_reachable", "origin": "Penn Station",
+      "destination": "Grand Central", ...}
+```
+
+The model committed to `find_reachable` before `destination` existed in its context. It
+was classifying the sentence before it had read the sentence out into the form, and the
+only two slots carrying evidence for the classification, `destination` and `max_minutes`,
+were both generated afterwards. A field ordered that way cannot be better than a guess.
+
+`intent` is now gone from the schema. Which of the three router tools runs is derived
+from the slots by `app/src/lib/domain/dispatch.ts`: a named destination routes to it, no
+destination and no clock finds the nearest, no destination with a clock draws what is
+reachable. The mapping reproduces the expected tool for all 17 fixtures with no inference
+at all, asserted in `app/tests/unit/extraction.test.ts`, so dispatch correctness is now a
+property of the slots rather than a prediction to be scored.
+
+The confirmation card still shows which tool was chosen and still lets the user change it,
+because a derived answer can be wrong about an ambiguous sentence even when it is never
+wrong about the slots it reads. The card says which case applies: chosen from the form, or
+changed by you.
 
 ### Two failure modes, both caught by the card
 
@@ -310,19 +349,20 @@ Everything outside them routes exactly as it did before.
 
 ## 7. The three highest-value next steps
 
-### 1. Replace generative intent selection with a classification head
+### 1. Cut the remaining over-generation on `resource_types` and `conditions`
 
-**Motivated by:** intent wrong in 65% of runs, worse than the 47.1% a constant predictor
-would achieve, with the model never once emitting the most common class across 17
-fixtures. This is the sharpest result in the project.
+**Motivated by:** the intent field, which was the sharpest result in the project, has been
+removed rather than improved on, and the reason is above: it was decoded before the
+evidence for it existed. Deleting it took the worst field out of the schema without
+costing anything, because the tool it selected is derivable from two slots the model was
+already filling in.
 
-A three-way classification over a fixed label set does not need a generative decoder at
-all. The same Granite embedding with a small trained head, or even a logistic regression
-over sentence embeddings, would almost certainly beat 35% on three classes, and would
-remove the failure mode that currently costs the user a correction on nearly every query.
-The grammar would still constrain the rest of the profile. This was deliberately not
-attempted in the time available because doing it badly would be worse than reporting the
-number honestly.
+What remains is over-generation on the two array fields. The model volunteers resource
+types nobody asked for and conditions nobody stated, which is the failure mode the card
+exists to catch but should not have to catch this often. The same reasoning that fixed
+intent may apply: both arrays are generated before the model has committed to anything
+about the sentence, and a schema that ordered the free-text slots first might anchor them.
+That is a cheap experiment now that stage 1 runs from node in under 30 seconds.
 
 ### 2. Swap the routed cost from MRT to UTCI
 

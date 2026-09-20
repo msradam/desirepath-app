@@ -7,6 +7,7 @@
   import { UnweaverWasmAdapter } from '$lib/adapters/pedestrian-router';
   import { MinotorAdapter } from '$lib/adapters/transit-router';
   import { WebLLMGraniteAdapter } from '$lib/adapters/llm';
+  import { OllamaAdapter } from '$lib/adapters/llm-ollama';
   import { WeatherAdapter } from '$lib/adapters/feed-weather';
   import { MTAOutagesAdapter } from '$lib/adapters/feed-mta-outages';
   import { LocalSpeechSynthesisAdapter } from '$lib/adapters/tts';
@@ -20,6 +21,7 @@
   import { ExtractionService, resolveEffects, decoderStats } from '$lib/services/extraction';
   import { CONDITION_DEFAULTS, CONDITION_EFFECTS } from '$lib/domain/condition-effects';
   import type { TravelProfile } from '$lib/domain/profile-grammar';
+  import type { Tool } from '$lib/domain/dispatch';
 
   // Stores
   import { weather, transitState, loadPhase, loadMessage, loadProgress, graphStats } from '$lib/stores/feeds';
@@ -44,7 +46,21 @@
   const geocoder = new FuseGeocoderAdapter(privacyLog);
   const pedestrian = new UnweaverWasmAdapter(privacyLog);
   const transit = new MinotorAdapter(privacyLog);
-  const llm = new WebLLMGraniteAdapter(privacyLog);
+  /**
+   * Granite 4, either in the browser or in Ollama on the same machine.
+   *
+   * Both are on-device: the sentence never reaches the internet either way.
+   * Ollama is the default because the model is resident in a process instead
+   * of being loaded into a tab, which removes the 20 to 29 second cold start
+   * the browser path pays on every fresh profile, and lets stage 1 be tested
+   * from node instead of from Chromium. The WebGPU path is still here and
+   * still works: it needs nothing installed, which is the better answer for
+   * somebody opening this on a phone. Append ?llm=webgpu to use it.
+   */
+  const llm =
+    typeof location !== 'undefined' && new URLSearchParams(location.search).get('llm') === 'webgpu'
+      ? new WebLLMGraniteAdapter(privacyLog)
+      : new OllamaAdapter(undefined, undefined, privacyLog);
   const weatherAdapter = new WeatherAdapter(privacyLog);
   const mtaOutages = new MTAOutagesAdapter(privacyLog);
   const tts = new LocalSpeechSynthesisAdapter();
@@ -306,12 +322,12 @@
 
     // ── Step 5: WebGPU probe + local model load ───────────────────────────
     loadPhase.set('model_probing');
-    loadMessage.set('Checking WebGPU…');
+    loadMessage.set('Checking the local model…');
     const probe = await llm.probeWebGPU();
     if (!probe.ok) {
       gpuError = probe.info;
       loadPhase.set('model_error');
-      loadMessage.set(`WebGPU unavailable: ${probe.info}`);
+      loadMessage.set(`Local model unavailable: ${probe.info}`);
       booted = true;
       querySubmitFn.set(handleSend);
       return;
@@ -379,7 +395,7 @@
   });
 
   /** The user accepted or corrected the form. Now, and only now, route. */
-  async function acceptProfile(profile: TravelProfile) {
+  async function acceptProfile(profile: TravelProfile, tool: Tool) {
     const ctx = pending;
     pending = null;
     if (!ctx || !narrationService || get(queryBusy)) return;
@@ -388,7 +404,7 @@
     queryBusy.set(true);
     const entryId = queryLog.addEntry(ctx.query);
     try {
-      await narrationService.runConfirmedProfile(profile, effects, ctx.query, callbacks(entryId));
+      await narrationService.runConfirmedProfile(profile, tool, effects, ctx.query, callbacks(entryId));
     } catch (e) {
       queryLog.updateRecord(entryId, { botText: `Sorry. ${(e as Error).message}` });
     } finally {

@@ -11,6 +11,7 @@ import { buildWalkSteps, buildMultimodalSteps } from '../directions';
 import { langDirective } from '../lang';
 import { NO_ORIGIN_ERROR } from './router-service';
 import type { TravelProfile } from '../domain/profile-grammar';
+import type { Tool } from '../domain/dispatch';
 import type { ResolvedEffects } from './extraction';
 import type { ThermalArgs } from '../domain/thermal';
 
@@ -230,6 +231,7 @@ export class NarrationService {
    */
   async runConfirmedProfile(
     profile: TravelProfile,
+    tool: Tool,
     effects: ResolvedEffects,
     q: string,
     cb: NarrationCallbacks,
@@ -245,15 +247,15 @@ export class NarrationService {
       thermal,
     };
 
-    let name: string;
+    // The tool came from lib/domain/dispatch.ts, or from the user overriding it
+    // on the card. Either way it is decided before this runs; nothing here
+    // classifies anything.
     let args: Record<string, unknown>;
-    switch (profile.intent) {
+    switch (tool) {
       case 'plan_route':
-        name = 'plan_route';
         args = { ...shared, from: profile.origin, to: profile.destination ?? '' };
         break;
-      case 'find_reachable':
-        name = 'find_reachable_resources';
+      case 'find_reachable_resources':
         args = {
           ...shared,
           near: profile.origin,
@@ -264,11 +266,10 @@ export class NarrationService {
         };
         break;
       default:
-        name = 'find_comfort_and_route';
         args = { ...shared, near: profile.origin, resource_types: profile.resource_types };
     }
 
-    return this.dispatch(name, args, q, cb, { t_start });
+    return this.dispatch(tool, args, q, cb, { t_start });
   }
 
   async query(q: string, weather: WeatherContext | null, cb: NarrationCallbacks): Promise<void> {
