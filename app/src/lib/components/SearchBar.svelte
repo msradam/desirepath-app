@@ -31,7 +31,16 @@
     // `destination` on that phrasing; "I need somewhere cool" leaves
     // destination empty and dispatches correctly.
     "I'm in Brownsville and I need somewhere cool to sit down, I use a wheelchair",
-    "I'm in Mott Haven and I need somewhere cool to sit down, I use a wheelchair",
+    // Spanish, same shape. The highest heat-vulnerability neighbourhoods in
+    // New York are where Spanish is a household language, so the demo
+    // should not be able to run without it once.
+    //
+    // "donde sentarme" was tried first and fails 2/2: it pulls linknyc and
+    // wifi_power into resource_types, the nearest match is a LinkNYC kiosk,
+    // and the safety check correctly refuses to send somebody who asked for
+    // somewhere cool to a wifi pole. "donde descansar" reaches the same
+    // destination as the English query, 2/2.
+    'Estoy en Mott Haven y necesito un lugar fresco donde descansar, uso silla de ruedas',
     // Heat AND accessibility on the same route: both cost terms active at
     // once, which is the whole claim. A kerb without a ramp and 400 m of
     // unshaded asphalt are the same kind of statement about the same graph.
