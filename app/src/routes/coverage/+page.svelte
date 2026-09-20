@@ -41,6 +41,7 @@
       Desire<span>Path</span>
     </a>
     <p class="subject">Quarter-mile coverage, measured on foot</p>
+    <a class="cross" href="/route">Plan a walk &rarr;</a>
     <nav aria-label="Neighbourhood">
       {#each BUILT as n (n.code)}
         <button
@@ -71,7 +72,7 @@
 
   .plate {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 18px;
     padding: 10px 24px;
@@ -108,6 +109,22 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  .cross {
+    justify-self: end;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bone);
+    text-decoration: none;
+    padding: 7px 9px;
+    border: 2px solid var(--subtle);
+    white-space: nowrap;
+  }
+  .cross:hover { border-color: var(--hivis); color: var(--hivis); }
+  .cross:focus-visible { outline: 3px solid var(--hivis); outline-offset: 2px; }
 
   nav {
     display: flex;

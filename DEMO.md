@@ -9,8 +9,12 @@ still carry the argument.
 
 ## Before you start
 
+The landing page is at `/` and is ready instantly: it loads no model, no graph
+and no map, so it is a safe thing to have on screen while you talk. One click
+from there to the router.
+
 Easiest: open the deployed Space, which runs the model itself.
-`https://msradam-desirepath.hf.space` for the router,
+`https://msradam-desirepath.hf.space/route` for the router,
 `https://msradam-desirepath.hf.space/coverage?nta=BK1602` for the notice.
 
 To run it locally instead:
@@ -28,7 +32,7 @@ node scripts/serve-build.mjs 5190
 cd app
 ```
 
-Open `http://localhost:5190/coverage?nta=BK1602` and `http://localhost:5190/` in Chrome.
+Open `http://localhost:5190/coverage?nta=BK1602` and `http://localhost:5190/route` in Chrome.
 Both are ready in seconds: the model is resident in Ollama, so there is no cold model load
 to wait out on stage. The WebGPU build is still there at `?llm=webgpu` if you want the
 in-browser story, and that one does pay a 20 to 29 second first load.

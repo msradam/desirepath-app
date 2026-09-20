@@ -1,0 +1,51 @@
+- generic [ref=f5e2]:
+  - link "Skip to main content" [ref=f5e3] [cursor=pointer]:
+    - /url: "#content"
+  - main [ref=f5e4]:
+    - generic [ref=f5e5]:
+      - generic [ref=f5e6]:
+        - paragraph [ref=f5e7]: DesirePath
+        - paragraph [ref=f5e8]: Accessible pedestrian routing, New York City
+      - generic [ref=f5e9]:
+        - generic [ref=f5e10]:
+          - heading "A kerb without a ramp and four hundred metres of unshaded asphalt are the same kind of problem. This routes around both." [level=1] [ref=f5e11]
+          - paragraph [ref=f5e12]: DesirePath plans walks to public infrastructure, cooling centres, libraries, restrooms, senior centres, over the sidewalk network itself rather than the road beside it. Kerb ramps, crossings and step-free paths are edges it can route on. So is heat.
+          - generic [ref=f5e13]:
+            - link "Plan a walk type it in plain English" [ref=f5e14] [cursor=pointer]:
+              - /url: /route
+              - text: Plan a walk
+              - generic [ref=f5e15]: type it in plain English
+            - link "See what the quarter mile really delivers" [ref=f5e16] [cursor=pointer]:
+              - /url: /coverage?nta=BK1602
+        - generic [ref=f5e17]:
+          - paragraph [ref=f5e18]: New York says no one in its most heat-burdened neighbourhoods is more than a quarter mile from somewhere to cool down.
+          - paragraph [ref=f5e19]:
+            - text: In Brownsville that quarter mile counts
+            - strong [ref=f5e20]: 12.8%
+            - text: of the sidewalk network. Walked in the heat, a resident reaches
+            - strong [ref=f5e21]: 3.3%
+            - text: ", from 2 cooling elements across 2.86 km²."
+          - paragraph [ref=f5e22]: NYC DEP, Mayor de Blasio Expands Cool It! NYC, 24 June 2020
+        - generic [ref=f5e24]:
+          - generic [ref=f5e25]:
+            - term [ref=f5e26]: Routes on
+            - definition [ref=f5e27]:
+              - text: The
+              - strong [ref=f5e28]: OpenSidewalks
+              - text: graph, where a sidewalk is a first-class edge and a kerb ramp is a node with a height. That is the contribution; this is a consumer of it.
+          - generic [ref=f5e29]:
+            - term [ref=f5e30]: Prices
+            - definition [ref=f5e31]:
+              - strong [ref=f5e32]: Mean radiant temperature
+              - text: per edge, 32.5 °C in deep shade to 70 °C in open sun. A metre in full sun costs the router up to
+              - strong [ref=f5e33]: 1.84 metres
+              - text: ", after Melnikov et al. (2022) and 408 observed path choices."
+          - generic [ref=f5e34]:
+            - term [ref=f5e35]: Runs on
+            - definition [ref=f5e36]: Your device, or the machine serving this page. The routing, the graph and the geocoder never leave the browser, and the app says which engine read your sentence.
+        - paragraph [ref=f5e38]:
+          - text: Radiant temperature here is a
+          - strong [ref=f5e39]: proxy, not SOLWEIG
+          - text: ", and every artifact says so. Thermal survey covers five neighbourhoods, 7.67% of the city's edges; everywhere else routes exactly as it did before. The field is one design hour, 34.3 °C air under clear sky, and does not know what time it is. Sun inflation runs 0.16 to 0.84 and is"
+          - strong [ref=f5e40]: 0 unless a condition is stated
+          - text: ", so a route with none is identical to the one the pre-thermal router produced."
