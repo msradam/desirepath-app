@@ -1,0 +1,55 @@
+- generic [ref=f54e2]:
+  - link "Skip to main content" [ref=f54e3] [cursor=pointer]:
+    - /url: "#content"
+  - main [ref=f54e4]:
+    - generic [ref=f54e5]:
+      - generic [ref=f54e6]:
+        - link "Desire Path" [ref=f54e7] [cursor=pointer]:
+          - /url: /
+          - text: Desire
+          - generic [ref=f54e8]: Path
+        - paragraph [ref=f54e9]: Quarter-mile coverage, measured on foot
+        - navigation "Neighbourhood" [ref=f54e10]:
+          - button "Brownsville" [ref=f54e11] [cursor=pointer]
+          - button "Mott Haven" [ref=f54e12] [cursor=pointer]
+          - button "Tremont" [ref=f54e13] [cursor=pointer]
+          - button "East Harlem N" [ref=f54e14] [cursor=pointer]
+          - button "North Corona" [ref=f54e15] [cursor=pointer]
+      - 'heading "Tremont: quarter-mile cooling coverage, claimed against what is reachable on foot in the heat" [level=1] [ref=f54e16]'
+      - generic [ref=f54e17]:
+        - generic [ref=f54e18]:
+          - generic [ref=f54e19]:
+            - paragraph [ref=f54e20]: “no New Yorker in the most heat-burdened communities is more than 1/4 mile away from an outdoor cooling element”
+            - paragraph [ref=f54e21]: NYC DEP, Mayor de Blasio Expands Cool It! NYC, 24 June 2020
+          - generic [ref=f54e22]:
+            - paragraph [ref=f54e23]: "24.4"
+            - paragraph [ref=f54e24]: points overstated
+            - paragraph [ref=f54e25]: Tremont pavement the quarter mile counts and heat takes away
+        - generic [ref=f54e26]:
+          - application "Map of Tremont. Every figure it shows is written out below it." [ref=f54e27]
+          - list [ref=f54e28]:
+            - listitem [ref=f54e29]: Counted as covered
+            - listitem [ref=f54e31]: Counted, unreachable in heat
+            - listitem [ref=f54e33]: Reachable in heat
+            - listitem [ref=f54e35]: Cooling element, quarter mile
+        - generic [ref=f54e37]:
+          - list [ref=f54e38]:
+            - listitem [ref=f54e39]:
+              - generic [ref=f54e41]: 56.1%
+              - generic [ref=f54e42]: As the crow flies
+              - generic [ref=f54e43]: what the quarter mile counts
+              - generic [ref=f54e44]: 0.82 km²
+            - listitem [ref=f54e45]:
+              - generic [ref=f54e47]: 49.0%
+              - generic [ref=f54e48]: Walking the network
+              - generic [ref=f54e49]: along real sidewalks and crossings
+              - generic [ref=f54e50]: "-7.0 pts"
+            - listitem [ref=f54e51]:
+              - generic [ref=f54e53]: 31.6%
+              - generic [ref=f54e54]: Walking it in the heat
+              - generic [ref=f54e55]: sun priced into every metre
+              - generic [ref=f54e56]: "-24.4 pts"
+          - generic [ref=f54e57]:
+            - paragraph [ref=f54e58]: "8"
+            - paragraph [ref=f54e59]: cooling elements for 1.47 km² of Tremont, Bronx. Spray showers and misting stations, counted without drinking fountains.
+            - paragraph [ref=f54e60]: Radiant temperature here is a proxy, not SOLWEIG. The City also opens hydrant spray caps during heat advisories; those are not in the published dataset and are not counted.

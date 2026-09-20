@@ -1,15 +1,46 @@
-# ariadne-thermal
+# DesirePath
 
-A browser-based accessibility routing assistant for New York City, extended so
-the router optimises heat exposure alongside distance and accessibility. Type a question in plain English; get a route or a list of nearby comfort resources back. Everything runs locally. The language model, the routing, the geocoder. Nothing about your query, your route, or your destination leaves the browser.
+**The contribution is the OpenSidewalks graph. This is a consumer of it.**
 
-**Live demo:** https://msradam-ariadne-nyc.static.hf.space (Chrome or Edge with WebGPU; first visit downloads the 1B-parameter model into IndexedDB, ~30 seconds. Subsequent visits are instant).
+Sidewalks, crossings and kerb ramps are first-class edges in the OpenSidewalks
+schema rather than tags hanging off a road centreline, which is what makes "can
+this person actually walk there" a question the data can answer at all.
+DesirePath asks that question of New York's quarter-mile cooling promise, with
+heat priced into every metre, and shows the pavement the promise counts that
+nobody can reach.
 
-![Cooling centers reachable on foot from downtown Flushing](docs/images/query-flushing-cooling.png)
-*Query: "Cooling centers in Flushing." The model picked `find_reachable_resources`, the isochrone shows 5 / 10 / 15-minute walking bands, and the active-record card resolves to McGoldrick (155-06 Roosevelt Av., 10.4 min) with three more sites listed under ALSO NEARBY. Tool pill confirms the dispatch ran locally. `routed via osm_walk_graph · 4 places · no network`.*
+The second claim follows from the first: climate-aware routing is a natural
+extension of accessibility routing, and the evidence is that **nothing in the
+data model had to change to add it**. Mean radiant temperature became one more
+edge attribute beside kerb height and crossing width, and sensitivity to it
+became one more cost term. The router did not learn a new concept. It learned a
+new column. The full argument is in [THESIS.md](THESIS.md).
 
-![Spanish query routing to Elmhurst senior center](docs/images/query-jackson-heights-es.png)
-*Query: "Estoy en Jackson Heights, Roosevelt y 74. ¿Dónde está el centro de enfriamiento más cercano?" The model parsed the Spanish input, resolved the intersection to Jackson Heights-Roosevelt Avenue station, and routed to ELMHURST (W16). A senior center 2 minutes away. The bottom strip surfaces start, end, profile, and `● local` runtime.*
+Two screens. The coverage notice measures the claim; the routing view plans a
+walk from a sentence, with a form you confirm before anything routes.
+Everything on the query path runs on the machine you open it on: the model, the
+routing, the graph and the geocoder. The sentence and the destination do not
+reach the internet.
+
+![The quarter-mile claim against what Brownsville can actually reach](docs/demo/coverage-brownsville.png)
+*Brownsville. The quarter mile counts 12.8% of the sidewalk network as covered.
+Walking it in the heat reaches 3.3%. The orange is pavement the claim counts and
+a heat-burdened resident cannot walk to, from two cooling elements serving
+2.86 km².*
+
+![North Corona has no cooling element at all](docs/demo/coverage-north-corona.png)
+*North Corona. A Heat Vulnerability Index 4 to 5 neighbourhood with no spray
+showers and no misting stations. There is nothing to be a quarter mile away
+from.*
+
+![A heat-aware route through Brownsville](docs/demo/route-heat-aware.png)
+*The routing view. A model filled in the form, the person corrected it, and only
+then did anything route. `routed via osm_walk_graph · 25 min · no network`.*
+
+**Live demo:** https://msradam-ariadne-nyc.static.hf.space (Chrome or Edge with
+WebGPU; first visit downloads the 1B-parameter model into IndexedDB, about 30
+seconds. Subsequent visits are instant). Locally the model runs in Ollama
+instead, which removes that wait; see [DEMO.md](DEMO.md).
 
 This repo contains both the app and the data pipeline that produces the graphs and indexes it loads.
 
@@ -17,8 +48,8 @@ This repo contains both the app and the data pipeline that produces the graphs a
 
 New York's Cool It! programme promises that "no New Yorker in the most
 heat-burdened communities is more than 1/4 mile away from an outdoor cooling
-element" (NYC DEP, 24 June 2020). "Away from" is a straight line. Rendered
-against what a heat-burdened pedestrian can actually walk to on the
+element" (NYC DEP, 24 June 2020). "Away from" is a straight line. Measured
+instead along what a heat-burdened pedestrian can actually walk on the
 OpenSidewalks graph, the claim overstates coverage of a neighbourhood's
 sidewalk network by 9 to 43 percentage points, and one of the five
 neighbourhoods built here has no outdoor cooling element at all.

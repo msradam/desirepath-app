@@ -103,6 +103,38 @@ elaborate it gets.
 
 ---
 
+## 2b. The interface, rebuilt as DesirePath
+
+The project was renamed DesirePath and the interface rebuilt on one direction: the
+municipal street work notice. Stencil black on sign white, barricade orange for the
+shortfall, one process blue for what is reachable, and Overpass throughout, which descends
+from the Highway Gothic on the signs the world is made of. The typeface is self-hosted,
+which also took the Google Fonts fetch off the query path.
+
+Two screens now, and only two. `/coverage` is the notice: the DEP claim quoted at the top,
+the gap figure on a black placard, the map full bleed, the three readings stamped at the
+foot with what each one is down from. `/` is the routing view, which kept its work and
+gained the same plate. The brand rail, the session strip and the feed diagnostics are gone,
+along with `WayfindingStrip.svelte`, `SessionBar.svelte`, `FeedStatus.svelte` and
+`stores/network.ts`.
+
+Nothing on either screen rides on colour alone. Every fill that carries meaning carries a
+dash or a hatch as well, in the map layers and in the key, because this gets projected into
+a bright room. Audit at 1440 and 390: no text under 4.5:1, no target under 44px except
+MapLibre's own attribution links, no horizontal scroll, and a heading on a screen that had
+none. The design detector returns one finding, a 3px black rule dividing the query column
+from the map on the routing view; it is a structural divider in a world built from heavy
+rules, not the accent tab the rule is written against.
+
+Three real defects surfaced during the rebuild and were fixed: `fitBounds` ran against a
+container with no height yet and silently landed the map on the whole tri-state area; the
+dispatch control wrapped one option onto a second row at every width worth supporting; and
+the zero-element state stretched into a sheet of empty rule instead of sitting at the size
+of its content.
+
+The direction contract is in `.impeccable/surfaces/`, product truth in `PRODUCT.md`, and
+the argument the whole thing exists to make is in `THESIS.md`.
+
 ## 3. Extraction, measured against the real model
 
 17 golden fixtures. The numbers below were measured in a real browser against
