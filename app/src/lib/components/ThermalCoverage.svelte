@@ -386,15 +386,19 @@
   {#if reading && reading.elements > 0}
     <section class="notice">
       <!--
-        The subject, then the figure. The City's sentence used to be pinned
-        across the top at display size, which made the screen look like it was
-        quoting rather than measuring. It is attribution, so it belongs with
-        the rest of the provenance at the foot, at the size attribution is.
+        A heading and a sentence, not a scoreboard.
+        This read as a dashboard: a 6rem numeral shouting a figure whose units
+        nobody had explained yet, with the sentence that gives it meaning set
+        smaller than the decoration around it. The number is the conclusion, so
+        it now arrives at the end of a sentence, at the size of a sentence.
       -->
       <header class="band">
-        <p class="where">{d.name}<span class="boro">, {d.borough}</span></p>
-        <p class="gap-num">{gapOf(reading)}</p>
-        <p class="gap-unit">points the claim overstates</p>
+        <h2 class="where">{d.name}<span class="boro">, {d.borough}</span></h2>
+        <p class="lede">
+          The City counts <strong>{reading.radius.share.toFixed(1)}%</strong> of the sidewalk
+          network here as within a quarter mile of somewhere to cool down. Walking it in the
+          heat reaches <strong class="short">{reading.thermal.share.toFixed(1)}%</strong>.
+        </p>
       </header>
 
       <div class="sheet">
@@ -414,22 +418,39 @@
       </div>
 
       <footer class="stamp">
-        <ol class="readings">
-          {#each shareRows(reading) as row (row.key)}
-            <li>
-              <span class="mark {row.key}" aria-hidden="true"></span>
-              <span class="r-pct">{row.share.toFixed(1)}<span class="pc">%</span></span>
-              <span class="r-label">{row.label}</span>
-              <span class="r-sub">{row.sub}</span>
-              <span class="r-delta">
-                {#if row.delta}{row.delta} pts{:else}{row.km2 ? `${row.km2.toFixed(2)} km²` : ''}{/if}
-              </span>
-            </li>
-          {/each}
-        </ol>
+        <!--
+          A table, because this is three measurements of one quantity and that
+          is what a table is for. It was a stack of oversized percentages with
+          a coloured chip each, which made three comparable numbers look like
+          three unrelated headline stats.
+        -->
+        <table class="readings">
+          <caption class="sr-only">
+            Share of {d.name}'s sidewalk network within a quarter mile of a cooling element,
+            measured three ways
+          </caption>
+          <thead>
+            <tr><th scope="col">Measured</th><th scope="col">Share</th><th scope="col">Against the claim</th></tr>
+          </thead>
+          <tbody>
+            {#each shareRows(reading) as row (row.key)}
+              <tr class:worst={row.key === 'reachable'}>
+                <th scope="row">
+                  <span class="mark {row.key}" aria-hidden="true"></span>
+                  <span class="r-label">{row.label}</span>
+                  <span class="r-sub">{row.sub}</span>
+                </th>
+                <td class="r-pct">{row.share.toFixed(1)}%</td>
+                <td class="r-delta">
+                  {#if row.delta}{row.delta} pts{:else}&mdash;{/if}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
         <div class="census">
-          <p class="census-num">{reading.elements}</p>
           <p class="census-say">
+            <strong>{reading.elements}</strong>
             {reading.elements === 1 ? 'cooling element' : 'cooling elements'} for
             {d.area_km2 ? `${d.area_km2.toFixed(2)} km² of ` : 'all of '}{d.name}.
             Spray showers and misting stations, counted without drinking fountains.
@@ -484,46 +505,34 @@
   }
 
   /* ── The band ──────────────────────────────────────────────────────────
-     One line: where, and by how much. The map starts immediately under it. */
+     A heading and one sentence. The map starts immediately under it. */
   .band {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    align-items: baseline;
-    gap: 0 22px;
     padding: 16px 24px 18px;
-    border-bottom: var(--rule-heavy) solid var(--bone);
+    border-bottom: var(--rule-hair) solid var(--subtle);
   }
 
   .where {
-    font-size: clamp(1.1rem, 0.75rem + 1.1vw, 1.9rem);
-    font-weight: 900;
-    line-height: 1;
-    letter-spacing: -0.02em;
-    text-transform: uppercase;
-    color: var(--bone);
-  }
-  .boro { color: var(--muted); font-weight: 700; }
-
-  /* The figure. The only yellow on the screen that is type. */
-  .gap-num {
-    font-size: clamp(3.2rem, 1.2rem + 6.2vw, 6.5rem);
-    font-weight: 900;
-    line-height: 0.78;
-    letter-spacing: -0.045em;
-    color: var(--hivis);
-  }
-
-  .gap-unit {
-    max-width: 11ch;
-    padding-left: 2px;
-    text-wrap: balance;
-    font-size: clamp(0.8rem, 0.66rem + 0.36vw, 1rem);
+    font-size: 1.05rem;
     font-weight: 800;
     line-height: 1.2;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
     text-transform: uppercase;
     color: var(--bone);
   }
+  .boro { color: var(--muted); font-weight: 600; }
+
+  /* The figures sit inside the sentence that explains them rather than above
+     it at display size. Emphasis is weight and one colour, not scale. */
+  .lede {
+    max-width: 72ch;
+    margin-top: 7px;
+    font-size: clamp(0.95rem, 0.85rem + 0.42vw, 1.25rem);
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--bone-2);
+  }
+  .lede strong { font-weight: 800; color: var(--bone); }
+  .lede strong.short { color: var(--hivis); }
 
   /* ── The evidence ──────────────────────────────────────────────────────── */
   .sheet {
@@ -614,93 +623,82 @@
   /* ── The stamp ─────────────────────────────────────────────────────────── */
   .stamp {
     display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    gap: 0 28px;
-    padding: 16px 24px 18px;
-    background: var(--paper-2);
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 0 32px;
+    padding: 14px 24px 16px;
+    background: var(--slate-2);
   }
 
   .readings {
-    display: grid;
-    gap: 6px;
-    list-style: none;
+    border-collapse: collapse;
+    width: 100%;
+    font-variant-numeric: tabular-nums;
   }
 
-  .readings li {
-    display: grid;
-    grid-template-columns: 34px minmax(5.2rem, auto) minmax(0, auto) minmax(0, 1fr) auto;
-    align-items: baseline;
-    gap: 14px;
-  }
-
-  /* Worst last, and loudest last. The reading the whole sheet is about should
-     not be the same weight as the claim it disagrees with. */
-  .readings li:last-child .r-pct { color: var(--barricade-deep); }
-  .readings li:last-child .r-label { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 2px; }
-
-  .readings .mark { align-self: center; }
-
-  .r-pct {
-    font-size: clamp(1.25rem, 0.9rem + 0.95vw, 1.85rem);
-    font-weight: 900;
-    line-height: 1;
-    letter-spacing: -0.03em;
-  }
-  .r-pct .pc { font-size: 0.6em; font-weight: 800; margin-left: 1px; }
-
-  .r-label {
-    font-size: 0.88rem;
-    font-weight: 800;
-    letter-spacing: 0.005em;
-  }
-
-  .r-sub {
-    font-size: 0.75rem;
-    color: var(--muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* What each reading is down from. A percentage with nothing to measure it
-     against invites the reader to decide for themselves whether it is bad. */
-  .r-delta {
+  .readings thead th {
+    padding: 0 10px 5px 0;
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.64rem;
     font-weight: 700;
-    color: var(--ink-2);
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    text-align: left;
+    color: var(--muted);
+    border-bottom: var(--rule-hair) solid var(--subtle);
+  }
+  .readings thead th:not(:first-child) { text-align: right; }
+
+  .readings tbody th {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 10px 7px 0;
+    font-weight: 400;
+    text-align: left;
+  }
+
+  .readings td {
+    padding: 7px 0 7px 10px;
+    text-align: right;
     white-space: nowrap;
   }
-  .readings li:last-child .r-delta { color: var(--barricade-deep); font-weight: 700; }
+
+  .readings tbody tr + tr th,
+  .readings tbody tr + tr td {
+    border-top: var(--rule-hair) solid rgba(122, 144, 168, 0.35);
+  }
+
+  .r-label { font-size: 0.85rem; font-weight: 700; color: var(--bone); }
+  .r-sub { font-size: 0.75rem; color: var(--muted); }
+
+  .r-pct { font-size: 1rem; font-weight: 700; color: var(--bone); }
+  .r-delta { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); }
+
+  /* The reading the argument rests on. One row carries emphasis; the rest are
+     the comparison that makes it mean something. */
+  .readings tr.worst .r-pct { color: var(--hivis); font-weight: 800; }
+  .readings tr.worst .r-delta { color: var(--hivis); }
+  .readings tr.worst .r-label { text-decoration: underline; text-underline-offset: 3px; }
 
   .census {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 4px 14px;
-    padding-left: 28px;
-    border-left: var(--rule-hair) solid var(--ink);
-  }
-
-  .census-num {
-    grid-row: span 2;
-    font-size: clamp(2.2rem, 1.4rem + 2.4vw, 3.4rem);
-    font-weight: 900;
-    line-height: 0.85;
-    letter-spacing: -0.03em;
+    align-self: start;
+    padding-left: 30px;
+    border-left: var(--rule-hair) solid var(--subtle);
   }
 
   .census-say {
-    font-size: 0.8rem;
-    font-weight: 600;
-    line-height: 1.35;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--bone-2);
   }
+  .census-say strong { font-weight: 800; color: var(--bone); }
 
   .honesty {
+    margin-top: 9px;
     font-size: 0.72rem;
-    line-height: 1.4;
+    line-height: 1.45;
     color: var(--muted);
   }
-  .census .honesty { align-self: start; }
 
   /* ── Zero and fallback states ──────────────────────────────────────────── */
   /* These states are one block, centred. The row is auto rather than 1fr so
@@ -756,26 +754,23 @@
       grid-template-columns: minmax(0, 1fr);
       align-items: start;
     }
-      .gap {
-      text-align: left;
-      padding: 14px 16px 16px;
-    }
-    .gap-say { margin-left: 0; }
+        .gap-say { margin-left: 0; }
 
     .stamp {
       grid-template-columns: minmax(0, 1fr);
       gap: 14px;
       padding: 12px 16px 14px;
     }
-    .readings li {
-      grid-template-columns: 26px minmax(3.8rem, auto) minmax(0, 1fr) auto;
-    }
+    /* The third column is the comparison, and it is the first thing that has
+       to go when there is no room for it. */
     .r-sub { display: none; }
+    .readings thead th:last-child,
+    .readings td.r-delta { display: none; }
     .census {
       padding-left: 0;
       padding-top: 12px;
       border-left: 0;
-      border-top: var(--rule-hair) solid var(--ink);
+      border-top: var(--rule-hair) solid var(--subtle);
     }
     /* The evidence must stay the largest thing on the sheet, even on a phone
        where the band and the stamp both want the room. */

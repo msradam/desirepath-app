@@ -427,25 +427,47 @@ export class NarrationService {
       //
       // Stage 1 reliably writes the KIND of place into `destination` when the
       // person described a need instead of naming somewhere: "find me a
-      // cooling center" comes back as destination "cooling center", which
-      // dispatch.ts can only read as a named place. Four of the seventeen
-      // fixtures do this.
+      // cooling center" comes back as destination "cooling center", and "what
+      // libraries or shelters can I reach" comes back as destination
+      // "libraries or shelters". dispatch.ts can only read either as a named
+      // place. Several of the seventeen fixtures do this.
       //
-      // The geocoder is the thing that actually knows whether a string is a
-      // place in New York, so it decides. If it could not place the
-      // destination and the person gave us a resource type to look for, this
-      // was a comfort search all along, and we run it as one rather than
-      // handing back "I could not find that" for a question that has an
-      // answer. The receipt records that the dispatch was corrected.
+      // Rather than guess at a precedence rule between `destination` and
+      // `max_minutes`, let the geocoder decide, since it is the only thing
+      // here that actually knows whether a string is a place in New York. If
+      // the destination will not resolve and the person named a resource
+      // type, the request was a search all along. Which search depends on
+      // whether they gave a time budget, because that is the difference
+      // between "find me the nearest" and "what can I reach".
       const wantsResource = Array.isArray(args.resource_types) && args.resource_types.length > 0;
       if (!result.ok && wantsResource && result.error !== NO_ORIGIN_ERROR) {
-        const fallbackArgs = {
+        const fallbackArgs: Record<string, unknown> = {
           ...args,
           near: args.from ?? args.near,
           resource_types: args.resource_types,
         };
-        delete (fallbackArgs as Record<string, unknown>).from;
-        delete (fallbackArgs as Record<string, unknown>).to;
+        delete fallbackArgs.from;
+        delete fallbackArgs.to;
+
+        const budgeted = typeof args.max_minutes === 'number';
+        const asTool: Tool = budgeted ? 'find_reachable_resources' : 'find_comfort_and_route';
+
+        if (budgeted) {
+          // Reachability answers on a different shape, so it cannot be spliced
+          // into this branch. Re-enter dispatch with the corrected tool and let
+          // the reachable path above handle it.
+          cb.noteCorrection?.(
+            `“${String(args.to ?? '')}” is not somewhere I can route to. You gave a time ` +
+              `budget, so this was answered as what you can reach within it.`,
+            asTool,
+          );
+          return this.dispatch(asTool, fallbackArgs, q, cb, {
+            t_start,
+            raw_model_output: modelOut,
+            llm_tool_turn: meta.llm_tool_turn,
+          });
+        }
+
         const retry = await this.routerService.findComfortAndRoute(
           fallbackArgs as Parameters<RouterService['findComfortAndRoute']>[0],
         );
@@ -453,10 +475,10 @@ export class NarrationService {
           cb.noteCorrection?.(
             `“${String(args.to ?? '')}” is not somewhere I can route to, so this was ` +
               `answered as a search for the nearest one instead.`,
-            'find_comfort_and_route',
+            asTool,
           );
-          name = 'find_comfort_and_route';
-          args = fallbackArgs as Record<string, unknown>;
+          name = asTool;
+          args = fallbackArgs;
           result = retry;
         }
       }

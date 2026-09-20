@@ -72,20 +72,107 @@ npm run route -- transit "Atlantic Avenue" "Broadway Junction"
 
 The comparison view is at `/coverage?nta=BK1602`.
 
-### How heat is costed
+### What mean radiant temperature is
 
-Each edge carries a mean radiant temperature, which is what the body exchanges
-radiant heat with and runs 20 to 30 degrees above air temperature on a sunlit
-street. The router charges a distance-inflating coefficient on exposure, after
-Melnikov et al. (2022), who estimate from 408 observed pedestrian path choices
-that a metre in full sun is felt as 1.16 metres in shade. Basu et al. (2024),
-revealed preference from GPS traces in Boston, put the equivalent figure near
-0.63 in the same units. Both are in `config/condition-map.yaml`, which maps a
-fixed condition vocabulary onto routing parameters and is meant to be read and
-challenged by a clinician without reading any code.
+Air temperature is a poor description of what a hot street does to a person.
+Standing in full sun and standing in the shade of the same building ten metres
+away are the same air temperature and are not the same experience, because most
+of the heat load is radiant: shortwave sunlight arriving directly and bouncing
+off pavement and walls, plus longwave infrared radiating from every surface
+that has been heating up since morning.
 
-The thermal layer is off by default. A route with no stated condition is
-byte-identical to the one the pre-thermal router produced.
+**Mean radiant temperature (MRT)** is the single number that captures all of
+it. Formally it is the temperature of an imaginary uniform enclosure that would
+radiate the same energy at the body as the real, messy surroundings do. It is
+what the body actually exchanges radiant heat with, it is the dominant term in
+every outdoor thermal comfort index, and on a sunlit New York street in July it
+runs **20 to 30 degrees above air temperature**. In this graph it spans
+**32.5 °C in deep shade to 70.0 °C in open sun**, a 37.5 K range on the same
+afternoon, in the same city, under the same air temperature.
+
+That spread is the whole point. It is the difference a pedestrian feels between
+one side of a street and the other, it is invisible to any router working from
+distance alone, and it is a property of *place*, which means it can be attached
+to an edge and routed on.
+
+### How it enters the cost function
+
+This is where DesirePath extends `ariadne-nyc` rather than sitting beside it.
+
+Ariadne already had the machinery. Its router evaluates a **data-driven cost
+rule tree** per edge: a base attribute, a set of conditional multipliers, and
+an impassability test, all read from a profile JSON rather than compiled in.
+That is how `manual_wheelchair` differs from `generic_pedestrian`: a kerb
+without a ramp is impassable, an incline above a threshold multiplies the cost,
+a narrow sidewalk multiplies it more.
+
+Adding climate needed **one new construct and no new concepts**: a *continuous
+term*, which scales cost by where an edge's attribute falls between two
+anchors, instead of by a yes-or-no condition.
+
+```
+cost(edge) = length
+           x  PRODUCT(multipliers)          <- Ariadne: kerbs, width, incline
+           x  (1 + sun_inflation x exposure) <- DesirePath: one continuous term
+
+exposure   = clamp((mrt_edge - mrt_shade) / (mrt_sun - mrt_shade), 0, 1)
+           = clamp((mrt_edge - 33.01) / (61.8 - 33.01), 0, 1)
+```
+
+The two anchors are real reference points, not round numbers:
+**33.01 °C** is MRT in full building shade and **61.8 °C** in open sun, both at
+the NWS New York Heat Advisory threshold using NOAA 1991-2020 normals at
+LaGuardia. An edge at or below the shade anchor pays nothing.
+
+`sun_inflation` is the coefficient, and it is **measured, not chosen**. It is
+beta minus one from Melnikov et al. (2022), who estimated pedestrian path
+choice in heat from 408 observed choices: a population mean of 1.16, with
+individual estimates reaching 1.84. So the scale runs **0.16 to 0.84**, and at
+the top of it a metre in full sun is charged to the router as **1.84 metres**.
+Dijkstra minimises the sum of these weights, so it will accept a detour up to
+84 percent longer to stay out of the sun, and no more. Basu et al. (2024),
+revealed preference from GPS traces in Boston, independently land near 0.63 in
+the same units, inside that range.
+
+Where a given condition sits on that scale is a design judgement rather than a
+measurement, and `config/condition-map.yaml` says so in as many words. It maps
+a fixed condition vocabulary onto routing parameters and is meant to be read
+and argued with by a clinician without reading any code.
+
+**What this buys, measured.** Best case in the regression battery is East
+Harlem: **mean MRT along the route drops 14.5 °C for 22 extra metres**, a 1.6
+percent detour. Brownsville: **51.3 °C to 48.5 °C for 20 metres**, with the
+peak falling from 67.0 °C to 63.5 °C.
+
+### Why nothing else had to change
+
+The argument the project is making is visible in how small that diff was.
+
+Heat entered as **one more attribute on an edge**, one byte in the graph
+binary, beside width and incline. Sensitivity to heat entered as **one more
+term in the same cost tree**, beside the terms for kerb height and crossing
+length. The graph format went from v2 to v3 by appending a single byte. The
+router learned no new concept; it learned a new column.
+
+That is the evidence for the thesis: a network that can express "this person
+cannot mount an unramped kerb" can express "this person cannot cross 400 metres
+of unshaded asphalt" without being redesigned, because both are the same kind
+of statement about the same kind of object. Accessibility routing built the
+machinery. Climate routing is a second tenant in it, and air quality, night-time
+lighting or winter ice would each be a third.
+
+**Two properties make this safe to ship on a partially surveyed graph:**
+
+`mrt = 0` means *unsurveyed*, and the attribute is omitted rather than defaulted.
+`term_factor` returns 0 for an absent attribute, so an unsurveyed edge costs
+exactly what it cost before the thermal layer existed. The router is never paid
+to leave coverage, and never rewarded for it either. Only **7.67 percent of the
+city's 1.37 million edges** carry an MRT value today.
+
+`sun_inflation` defaults to **0**, which switches the term off entirely. **A
+route requested with no stated condition is byte-identical to what the
+pre-thermal router produced**, which is asserted in the test suite rather than
+asserted in prose.
 
 Every cost parameter is derived rather than chosen, and the derivation prints:
 

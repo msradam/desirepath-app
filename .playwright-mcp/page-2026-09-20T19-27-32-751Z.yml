@@ -1,0 +1,19 @@
+- generic [ref=f71e2]:
+  - link "Skip to main content" [ref=f71e3] [cursor=pointer]:
+    - /url: "#content"
+  - main [ref=f71e4]:
+    - generic [ref=f71e5]:
+      - generic [ref=f71e6]:
+        - link "Desire Path" [ref=f71e7] [cursor=pointer]:
+          - /url: /
+          - text: Desire
+          - generic [ref=f71e8]: Path
+        - paragraph [ref=f71e9]: Quarter-mile coverage, measured on foot
+        - navigation "Neighbourhood" [ref=f71e10]:
+          - button "Brownsville" [ref=f71e11] [cursor=pointer]
+          - button "Mott Haven" [ref=f71e12] [cursor=pointer]
+          - button "Tremont" [ref=f71e13] [cursor=pointer]
+          - button "East Harlem N" [ref=f71e14] [cursor=pointer]
+          - button "North Corona" [ref=f71e15] [cursor=pointer]
+      - 'heading "Brownsville: quarter-mile cooling coverage, claimed against what is reachable on foot in the heat" [level=1] [ref=f71e16]'
+      - paragraph [ref=f71e18]: Reading the sidewalk network for BK1602

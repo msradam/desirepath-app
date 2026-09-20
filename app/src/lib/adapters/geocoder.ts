@@ -111,6 +111,35 @@ function parseAddressQuery(q: string): { housenum: string; numKey: number; stree
   return { housenum: hn, numKey, street, borough };
 }
 
+/**
+ * Read a borough out of free text, including via a neighbourhood that only
+ * exists in one of them.
+ *
+ * The list is deliberately short: it covers the neighbourhoods that appear in
+ * this app's own example queries and in the demo script, so those resolve
+ * without a comma. It is a convenience on top of the address index, not a
+ * gazetteer, and anything it does not know simply falls through to the
+ * ordinary borough-ranked tiebreak.
+ */
+const NEIGHBOURHOOD_BOROUGH: Record<string, string> = {
+  'mott haven': 'bronx', 'tremont': 'bronx', 'fordham': 'bronx', 'hunts point': 'bronx',
+  'brownsville': 'brooklyn', 'bed stuy': 'brooklyn', 'bedford stuyvesant': 'brooklyn',
+  'east new york': 'brooklyn', 'bushwick': 'brooklyn', 'flatbush': 'brooklyn',
+  'east harlem': 'manhattan', 'harlem': 'manhattan', 'washington heights': 'manhattan',
+  'lower east side': 'manhattan', 'chelsea': 'manhattan', 'inwood': 'manhattan',
+  'north corona': 'queens', 'corona': 'queens', 'jackson heights': 'queens',
+  'flushing': 'queens', 'astoria': 'queens', 'elmhurst': 'queens', 'jamaica': 'queens',
+  'st george': 'staten island', 'stapleton': 'staten island',
+};
+
+function boroughFromText(text: string): string | null {
+  const t = text.trim().toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ');
+  if (!t) return null;
+  if (t in BOROUGH_DISPLAY) return t;
+  if (t === 'the bronx') return 'bronx';
+  return NEIGHBOURHOOD_BOROUGH[t] ?? null;
+}
+
 const BOROUGH_DISPLAY: Record<string, string> = {
   'manhattan': 'Manhattan', 'brooklyn': 'Brooklyn', 'queens': 'Queens',
   'bronx': 'Bronx', 'staten island': 'Staten Island',
@@ -194,21 +223,44 @@ export class FuseGeocoderAdapter implements GeocoderAdapter {
     return this.streetEntries.length;
   }
 
-  /** Find nearest housenumber on a given StreetEntry. */
+  /**
+   * Position a housenumber along a street, interpolating between the two
+   * points that bracket it.
+   *
+   * This used to snap to the nearest housenumber, which is fine where OSM has
+   * dense address points and badly wrong where it does not. Third Avenue
+   * carries seven address points spanning 2413 to 3872, so snapping put
+   * "2881 Third Avenue" up to a kilometre from the real one, far enough that
+   * a 20-minute walk from it reached nothing at all.
+   *
+   * Linear interpolation between the bracketing pair is what address
+   * geocoders do, and it degrades gracefully: with dense points the bracket
+   * is tight and the answer is nearly exact, with sparse points it is a
+   * reasonable position on the right street instead of a wrong one.
+   */
   private resolveOnStreet(entry: StreetEntry, target: number): { lat: number; lng: number } {
     const hs = entry.housenums;
     if (hs.length === 0) return { lat: 0, lng: 0 };
     if (target <= hs[0].num) return { lat: hs[0].lat, lng: hs[0].lng };
-    if (target >= hs[hs.length - 1].num) return { lat: hs[hs.length - 1].lat, lng: hs[hs.length - 1].lng };
-    // Binary search for nearest by absolute diff.
+    const last = hs[hs.length - 1];
+    if (target >= last.num) return { lat: last.lat, lng: last.lng };
+
+    // Binary search for the first entry at or above the target.
     let lo = 0, hi = hs.length - 1;
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
       if (hs[mid].num < target) lo = mid + 1;
       else hi = mid;
     }
-    const cand = lo === 0 ? hs[0] : (Math.abs(hs[lo].num - target) <= Math.abs(hs[lo - 1].num - target) ? hs[lo] : hs[lo - 1]);
-    return { lat: cand.lat, lng: cand.lng };
+    const hiPt = hs[lo];
+    const loPt = hs[lo === 0 ? 0 : lo - 1];
+    const span = hiPt.num - loPt.num;
+    if (span <= 0) return { lat: hiPt.lat, lng: hiPt.lng };
+    const t = (target - loPt.num) / span;
+    return {
+      lat: loPt.lat + (hiPt.lat - loPt.lat) * t,
+      lng: loPt.lng + (hiPt.lng - loPt.lng) * t,
+    };
   }
 
   /** Stage 4: structured address resolution. Returns null if nothing matches. */
@@ -219,10 +271,28 @@ export class FuseGeocoderAdapter implements GeocoderAdapter {
     const streetKey = normalize(parsed.street);
     if (!streetKey) return null;
 
-    // Exact street match. Disambiguate by borough if user named one.
+    // Exact street match, then longest-prefix match.
+    //
+    // People write "2881 Third Avenue Mott Haven" without a comma, so the
+    // parser hands back a street of "Third Avenue Mott Haven" and no key
+    // matches. Dropping trailing words one at a time finds "third avenue",
+    // and because every attempt is still an exact key lookup, a trim can only
+    // ever succeed on a street that really exists. Longest match wins, so
+    // "west 30th street" is found whole and never trimmed to "west 30th".
+    let words = streetKey.split(' ');
     let candidates = this.streetByKey.get(streetKey) ?? [];
-    if (parsed.borough && candidates.length > 0) {
-      const filt = candidates.filter((e) => e.borough.toLowerCase() === parsed.borough);
+    let tail = '';
+    while (candidates.length === 0 && words.length > 1) {
+      tail = words[words.length - 1] + (tail ? ` ${tail}` : '');
+      words = words.slice(0, -1);
+      candidates = this.streetByKey.get(words.join(' ')) ?? [];
+    }
+
+    // A trimmed tail may name the borough ("... Third Avenue Bronx") or a
+    // neighbourhood in one, which is a disambiguation hint worth keeping.
+    const boroughHint = parsed.borough ?? boroughFromText(tail);
+    if (boroughHint && candidates.length > 0) {
+      const filt = candidates.filter((e) => e.borough.toLowerCase() === boroughHint);
       if (filt.length > 0) candidates = filt;
     }
 
@@ -232,8 +302,8 @@ export class FuseGeocoderAdapter implements GeocoderAdapter {
       if (hits.length === 0 || (hits[0].score ?? 1) > 0.30) return null;
       const topKey = hits[0].item.key;
       candidates = this.streetByKey.get(topKey) ?? [];
-      if (parsed.borough) {
-        const filt = candidates.filter((e) => e.borough.toLowerCase() === parsed.borough);
+      if (boroughHint) {
+        const filt = candidates.filter((e) => e.borough.toLowerCase() === boroughHint);
         if (filt.length > 0) candidates = filt;
       }
     }
@@ -258,7 +328,8 @@ export class FuseGeocoderAdapter implements GeocoderAdapter {
       }
     }
     if (!best || !withinNYC(best.coord.lat, best.coord.lng)) return null;
-    const display = `${parsed.housenum} ${parsed.street.replace(/\b\w/g, (c) => c.toUpperCase())}, ${BOROUGH_DISPLAY[best.entry.borough.toLowerCase()] ?? best.entry.borough}`;
+    const matched = best.entry.key.replace(/\b\w/g, (c) => c.toUpperCase());
+    const display = `${parsed.housenum} ${matched}, ${BOROUGH_DISPLAY[best.entry.borough.toLowerCase()] ?? best.entry.borough}`;
     return { lat: best.coord.lat, lng: best.coord.lng, display };
   }
 

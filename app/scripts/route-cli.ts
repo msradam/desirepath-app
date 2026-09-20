@@ -215,7 +215,7 @@ async function main() {
     console.error('Usage:');
     console.error('  npx tsx scripts/route-cli.ts plan "<from>" "<to>" [profile]');
     console.error('  npx tsx scripts/route-cli.ts find "<near>" "<resource_type>" [profile]');
-    console.error('  npx tsx scripts/route-cli.ts reach "<near>" "<resource_type>" [max_minutes]');
+    console.error('  npx tsx scripts/route-cli.ts reach "<near>" "<resource_type>" [max_minutes] [profile]');
     console.error('  npx tsx scripts/route-cli.ts geocode "<query>"');
     console.error('  npx tsx scripts/route-cli.ts thermal "<from>" "<to>" [profile] [sun_inflation]');
     console.error('  npx tsx scripts/route-cli.ts thermal-suite                        # the regression battery');
@@ -817,8 +817,12 @@ async function main() {
   }
 
   if (cmd === 'reach') {
-    const [near, resourceType, maxStr] = rest;
-    const args: any = { near, resource_types: [resourceType], profile: 'generic_pedestrian' };
+    const [near, resourceType, maxStr, profileArg] = rest;
+    const args: any = {
+      near,
+      resource_types: [resourceType],
+      profile: profileArg ?? 'generic_pedestrian',
+    };
     if (maxStr) args.max_minutes = Number(maxStr);
     log(`near=${c.bold(near)}  type=${c.bold(resourceType)}  max=${args.max_minutes ?? '(default)'}`);
     const result = await service.findReachable(args);

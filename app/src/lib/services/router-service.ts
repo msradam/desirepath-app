@@ -116,7 +116,14 @@ export class RouterService {
     const cands: Array<{ feature: ComfortFeature; dist: number }> = [];
 
     for (const f of this.comfortFeatures) {
-      if (!f.properties.resource_types.some((t) => wanted.has(t))) continue;
+      // An empty request means "anything", not "nothing".
+      //
+      // Stage 1 under-generates on resource_types often enough that this
+      // matters: the same sentence that produced three types on one run
+      // produced none on the next. Treating an empty set as a filter that
+      // matches nothing turns a model omission into "0 places", which reads
+      // as a fact about the neighbourhood rather than a fact about the model.
+      if (wanted.size > 0 && !f.properties.resource_types.some((t) => wanted.has(t))) continue;
       if (f.properties.is_temporarily_closed) continue;
       const d = haversineM(origin, f.geometry.coordinates);
       if (d > 3000) continue;
@@ -161,7 +168,14 @@ export class RouterService {
     const pois: ReachablePoi[] = [];
 
     for (const f of this.comfortFeatures) {
-      if (!f.properties.resource_types.some((t) => wanted.has(t))) continue;
+      // An empty request means "anything", not "nothing".
+      //
+      // Stage 1 under-generates on resource_types often enough that this
+      // matters: the same sentence that produced three types on one run
+      // produced none on the next. Treating an empty set as a filter that
+      // matches nothing turns a model omission into "0 places", which reads
+      // as a fact about the neighbourhood rather than a fact about the model.
+      if (wanted.size > 0 && !f.properties.resource_types.some((t) => wanted.has(t))) continue;
       if (f.properties.is_temporarily_closed) continue;
       const [fLng, fLat] = f.geometry.coordinates;
       if (Math.abs(fLat - a.lat) > degLat || Math.abs(fLng - a.lng) > degLng) continue;

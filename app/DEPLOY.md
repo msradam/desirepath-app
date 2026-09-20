@@ -159,10 +159,49 @@ cross-origin-opener-policy          same-origin
 /fonts/overpass-700.woff2           206, font/woff2
 ```
 
-### Known gap
+### Running the deployed Space against your own Ollama
 
-`/output/nyc-streets.json` 404s. It is the house-number address index and is
-not built by the pipeline in this repo; `geocoder.loadStreets` is called with a
-`.catch(() => {})` so the app degrades to named-place geocoding rather than
-failing. Queries like "161 Amsterdam Avenue" will not resolve. This predates the
-DesirePath work and is missing locally too.
+The Space defaults to WebGPU because a visitor has no Ollama. Anyone who does
+can use it instead, with `?llm=ollama`, provided Ollama is told to accept the
+Space's origin:
+
+```bash
+OLLAMA_ORIGINS="https://msradam-desirepath.static.hf.space" ollama serve
+```
+
+Verified: the preflight returns
+`Access-Control-Allow-Origin: https://msradam-desirepath.static.hf.space`, and
+an HTTPS page is allowed to call `http://localhost` because browsers treat
+localhost as a potentially trustworthy origin, so this is not blocked as mixed
+content. The COEP `require-corp` header on the Space is satisfied by the
+successful CORS response.
+
+This is per-visitor and opt-in. It cannot be the default, and the Space cannot
+run Ollama itself: a static Space serves files and has no process to run a
+model in.
+
+### The address index
+
+`/output/nyc-streets.json` is now built and shipped (24 MB). It was missing
+entirely, which broke every house-number query including three of the app's own
+example queries. Rebuild it with:
+
+```bash
+uv run python pipeline/sources/fetch_open_data.py --section addresses  # ~1 min, Overpass
+uv run python pipeline/sources/build_address_index.py                  # 896k points -> 12,175 streets
+```
+
+Two geocoder fixes went with it, both found by the example query
+"what libraries or shelters can I reach from 2881 Third Avenue Mott Haven in 20
+minutes, wheelchair":
+
+- **Longest-prefix street matching.** People write "2881 Third Avenue Mott
+  Haven" with no comma, so the parser read the street as "Third Avenue Mott
+  Haven" and matched nothing. Trailing words are now dropped one at a time
+  until an exact street key matches, and a trimmed tail that names a
+  neighbourhood is used as a borough hint.
+- **Housenumber interpolation.** OSM address coverage on major avenues is
+  sparse: Third Avenue carries seven address points spanning 2413 to 3872.
+  Snapping to the nearest put the origin up to a kilometre out, far enough that
+  a 20-minute walk from it reached nothing. Positions now interpolate between
+  the bracketing pair.
