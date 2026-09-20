@@ -281,8 +281,8 @@ uv run python pipeline/sources/build_address_index.py             # → nyc-stre
 
 ## HuggingFace Deployment
 
-**Space:** `https://huggingface.co/spaces/msradam/ariadne-nyc`
-**Direct URL:** `https://msradam-ariadne-nyc.static.hf.space`
+**Space:** `https://huggingface.co/spaces/msradam/desirepath`
+**Direct URL:** `https://msradam-desirepath.static.hf.space`
 **Model repo:** `https://huggingface.co/msradam/Granite-4.0-1b-q4f32_1-MLC`
 **Deploy clone:** `/tmp/ariadne-hf-deploy` (transient. Re-clone before each deploy)
 

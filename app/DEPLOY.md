@@ -77,3 +77,64 @@ Fixed by adding `--exclude 'README.md'` to rsync. Without this, COEP/COOP header
 - IndexedDB cache key: if model URL changes, users re-download. Keep URL stable.
 - `ndarray-cache.json` must be reachable at the model base URL. WebLLM reads it first
 - `tensor-cache.json` / `tensor-cache-b16.json`: include both, WebLLM may need them
+
+---
+
+## DesirePath deployment (current)
+
+**Space:** `https://huggingface.co/spaces/msradam/desirepath`
+**Direct URL:** `https://msradam-desirepath.static.hf.space`
+**Source:** `https://github.com/msradam/desirepath-app`
+**Model repo:** unchanged, `msradam/Granite-4.0-1b-q4f32_1-MLC`
+
+The Ariadne Space at `msradam/ariadne-nyc` is left alone and still serves the
+version it always did.
+
+### Which model runs where
+
+`app/src/routes/+page.svelte` picks the adapter from `import.meta.env.PROD`:
+
+| | default | why |
+|---|---|---|
+| Deployed Space | WebGPU (WebLLM) | a visitor has no Ollama on localhost, so defaulting to it would show "Ollama unreachable" and nothing else |
+| Local | Ollama | the model is already resident in a process, which removes the 20 to 29 second cold start from every rebuild and every test |
+
+`?llm=webgpu` and `?llm=ollama` override, so either can be demonstrated from
+either place. **Check this first if a deployed Space cannot load a model.**
+
+### What is excluded from the Space
+
+`build/` is 232 MB, most of which is pipeline intermediates that nothing fetches
+at runtime. The deploy excludes them and lands at 60 MB:
+
+```bash
+rsync -a \
+  --exclude 'output/osw' \
+  --exclude 'output/thermal' \
+  --exclude 'output/nyc-pedestrian.bin' \
+  app/build/ /tmp/desirepath-hf/
+```
+
+Runtime fetches only these under `/output/`: `nyc-pedestrian-thermal.bin`,
+`nyc-comfort.json`, `nyc-pois.json`, `nyc-streets.json`, `ada-stops.json`,
+`stops.bin`, `timetable.bin`, and `<NTA>-coverage.json`. Re-derive that list
+with:
+
+```bash
+grep -rhno "/output/[A-Za-z0-9_./${}-]*" app/src --include='*.ts' --include='*.svelte' | sort -u
+```
+
+### Full deploy
+
+```bash
+cd app && npm run build
+rsync -a --delete --exclude '.git' --exclude '.gitattributes' --exclude 'README.md' \
+  --exclude 'output/osw' --exclude 'output/thermal' --exclude 'output/nyc-pedestrian.bin' \
+  build/ /tmp/desirepath-hf/
+cd /tmp/desirepath-hf && git add -A && git commit -m "deploy" && git push
+```
+
+`README.md` and `.gitattributes` live in the Space repo only, never in `build/`,
+which is why both are excluded from `--delete`. Losing the README loses the
+`custom_headers` block, and without those `crossOriginIsolated` is false and
+WebLLM cannot allocate a SharedArrayBuffer.

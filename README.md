@@ -41,10 +41,14 @@ from.*
 sentence and what it cost: the conditions it picked up, and whether heat was
 priced. `routed via osm_walk_graph · 25 min · no network`.*
 
-**Live demo:** https://msradam-ariadne-nyc.static.hf.space (Chrome or Edge with
-WebGPU; first visit downloads the 1B-parameter model into IndexedDB, about 30
-seconds. Subsequent visits are instant). Locally the model runs in Ollama
-instead, which removes that wait; see [DEMO.md](DEMO.md).
+**Live demo:** https://msradam-desirepath.static.hf.space
+
+Chrome or Edge with WebGPU. The first visit downloads the 1B-parameter model
+into IndexedDB, about 30 seconds; after that it is instant and offline. The
+coverage screen needs no model and is ready immediately.
+
+Run locally and the model comes from Ollama on your own machine instead, which
+removes that wait entirely. See [DEMO.md](DEMO.md).
 
 This repo contains both the app and the data pipeline that produces the graphs and indexes it loads.
 

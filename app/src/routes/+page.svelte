@@ -48,20 +48,29 @@
   const pedestrian = new UnweaverWasmAdapter(privacyLog);
   const transit = new MinotorAdapter(privacyLog);
   /**
-   * Granite 4, either in the browser or in Ollama on the same machine.
+   * Granite 4, either in the browser on WebGPU or in Ollama on the same machine.
    *
-   * Both are on-device: the sentence never reaches the internet either way.
-   * Ollama is the default because the model is resident in a process instead
-   * of being loaded into a tab, which removes the 20 to 29 second cold start
-   * the browser path pays on every fresh profile, and lets stage 1 be tested
-   * from node instead of from Chromium. The WebGPU path is still here and
-   * still works: it needs nothing installed, which is the better answer for
-   * somebody opening this on a phone. Append ?llm=webgpu to use it.
+   * Both are on-device and the sentence reaches the internet in neither case,
+   * but only one of them can be the default in a given place:
+   *
+   *   deployed  WebGPU. A visitor to the Space has no Ollama on localhost, so
+   *             defaulting to it would mean every visitor sees "Ollama
+   *             unreachable" and nothing else. They pay the 20 to 29 second
+   *             first load and it works with nothing installed.
+   *   local     Ollama. The model is already resident in a process, which
+   *             removes that cold start from every rebuild and every test.
+   *
+   * `?llm=webgpu` and `?llm=ollama` override, so either can be demonstrated
+   * from either place.
    */
-  const llm =
-    typeof location !== 'undefined' && new URLSearchParams(location.search).get('llm') === 'webgpu'
-      ? new WebLLMGraniteAdapter(privacyLog)
-      : new OllamaAdapter(undefined, undefined, privacyLog);
+  const llmChoice =
+    typeof location !== 'undefined'
+      ? new URLSearchParams(location.search).get('llm')
+      : null;
+  const useOllama = llmChoice === 'ollama' || (llmChoice !== 'webgpu' && !import.meta.env.PROD);
+  const llm = useOllama
+    ? new OllamaAdapter(undefined, undefined, privacyLog)
+    : new WebLLMGraniteAdapter(privacyLog);
   const weatherAdapter = new WeatherAdapter(privacyLog);
   const mtaOutages = new MTAOutagesAdapter(privacyLog);
   const tts = new LocalSpeechSynthesisAdapter();
