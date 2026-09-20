@@ -26,6 +26,9 @@
       claimed: [number, number][][];
       reachable: [number, number][][];
       shortfall: [number, number][][];
+      /** Sidewalk the quarter mile does not reach at all. The denominator.
+          Optional: a coverage file built before this existed has no key. */
+      uncovered?: [number, number][][];
     };
   };
   type CoolingElement = { lon: number; lat: number; name: string; kind: string };
@@ -251,6 +254,7 @@
         map.addImage('site', markerImage(c.bone, c.paper));
 
         map.addSource('boundary', { type: 'geojson', data: boundaryFC(d.boundary) });
+        map.addSource('uncovered', { type: 'geojson', data: lines(r.geometry.uncovered ?? []) });
         map.addSource('claimed', { type: 'geojson', data: claimed });
         map.addSource('shortfall', { type: 'geojson', data: lines(r.geometry.shortfall) });
         map.addSource('reachable', { type: 'geojson', data: lines(r.geometry.reachable) });
@@ -267,19 +271,15 @@
           layout: { 'line-join': 'miter' },
           paint: { 'line-color': c.bone, 'line-width': 2.5 },
         });
-        // Claimed pavement: a hairline, dotted. Colour is the third channel
-        // here, never the only one.
+        // The sidewalk the quarter mile never reaches, drawn first and drawn
+        // dim. It is the denominator: without it the covered segments float on
+        // a basemap and a percentage has nothing to be a percentage of.
         map.addLayer({
-          id: 'claimed-line',
+          id: 'uncovered-line',
           type: 'line',
-          source: 'claimed',
-          layout: { 'line-join': 'miter', 'line-cap': 'butt' },
-          paint: {
-            'line-color': c.claimed,
-            'line-width': 1.5,
-            'line-dasharray': [1, 2],
-            'line-opacity': 0.7,
-          },
+          source: 'uncovered',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': c.claimed, 'line-width': 2, 'line-opacity': 0.55 },
         });
         // The figure. Barricade orange, and chunky dashes so it reads as
         // hatched work area rather than as a route.
@@ -353,7 +353,7 @@
           if (!map) return;
           const p = palette();
           map.setPaintProperty('boundary-line', 'line-color', p.bone);
-          map.setPaintProperty('claimed-line', 'line-color', p.claimed);
+          map.setPaintProperty('uncovered-line', 'line-color', p.claimed);
           map.setPaintProperty('shortfall-line', 'line-color', p.shortfall);
           map.setPaintProperty('reachable-line', 'line-color', p.reachable);
           map.setPaintProperty('ring-line', 'line-color', p.bone);
@@ -409,8 +409,15 @@
           {@attach thermalMap(d, reading, sprayOnly(d.elements))}
         ></div>
 
+        <!--
+          Three entries, in the order the argument runs: what the sidewalk is,
+          what the claim counts, what a person gets. The old key had a fourth,
+          "Counted as covered", drawn as a dotted hairline that was invisible
+          on this ground at every zoom, so one line of the legend pointed at
+          nothing.
+        -->
         <ul class="key">
-          <li><span class="mark claimed" aria-hidden="true"></span>Counted as covered</li>
+          <li><span class="mark uncovered" aria-hidden="true"></span>Sidewalk, not counted at all</li>
           <li><span class="mark shortfall" aria-hidden="true"></span>Counted, unreachable in heat</li>
           <li><span class="mark reachable" aria-hidden="true"></span>Reachable in heat</li>
           <li><span class="mark site" aria-hidden="true"></span>Cooling element, quarter mile</li>
@@ -589,10 +596,12 @@
     height: 10px;
     border: 1px solid var(--ink);
   }
+  .mark.uncovered,
   .mark.claimed {
-    height: 0;
+    height: 3px;
     border: 0;
-    border-top: 2px dotted var(--ink);
+    background: var(--muted);
+    opacity: 0.75;
   }
   .mark.shortfall {
     background: repeating-linear-gradient(

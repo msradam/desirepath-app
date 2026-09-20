@@ -7,6 +7,19 @@
   // originals are kept below, because the empty state is worth showing on
   // purpose.
   const EXAMPLES = [
+    // Asked the way a person asks, with no address: a neighbourhood and a
+    // need. Both verified 2/2 end to end through extraction, dispatch and
+    // routing.
+    //
+    // "nearest shelter to Mott Haven" and "find me a cooling center near
+    // Tremont" were tested and are NOT here. The first routed to
+    // Eastchester, a neighbourhood the geocoder matched from the word
+    // "shelter", which is a silent wrong answer and worse than an error.
+    // The second failed NoPath 2/2. Stage 1 puts the resource kind in
+    // `destination` on that phrasing; "I need somewhere cool" leaves
+    // destination empty and dispatches correctly.
+    "I'm in Brownsville and I need somewhere cool to sit down, I use a wheelchair",
+    "I'm in Mott Haven and I need somewhere cool to sit down, I use a wheelchair",
     // Heat AND accessibility together. Both cost terms active on the same
     // route, which is the claim the project actually makes: a kerb and an
     // unshaded block are the same kind of constraint on the same graph.

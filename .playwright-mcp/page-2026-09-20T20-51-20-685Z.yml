@@ -1,0 +1,55 @@
+- generic [ref=e2]:
+  - link "Skip to main content" [ref=e3] [cursor=pointer]:
+    - /url: "#content"
+  - main [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - link "Desire Path" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - text: Desire
+          - generic [ref=e8]: Path
+        - navigation "Neighbourhood" [ref=e9]:
+          - button "Brownsville" [ref=e10] [cursor=pointer]
+          - button "Mott Haven" [ref=e11] [cursor=pointer]
+          - button "Tremont" [ref=e12] [cursor=pointer]
+          - button "East Harlem N" [ref=e13] [cursor=pointer]
+          - button "North Corona" [ref=e14] [cursor=pointer]
+      - 'heading "Mott Haven: quarter-mile cooling coverage, claimed against what is reachable on foot in the heat" [level=1] [ref=e15]'
+      - generic [ref=e16]:
+        - generic [ref=e17]:
+          - heading "Mott Haven-Port Morris, Bronx" [level=2] [ref=e18]
+          - paragraph [ref=e19]:
+            - text: The City counts
+            - strong [ref=e20]: 56.8%
+            - text: of the sidewalk network here as within a quarter mile of somewhere to cool down. Walking it in the heat reaches
+            - strong [ref=e21]: 21.4%
+            - text: .
+        - generic [ref=e22]:
+          - application "Map of Mott Haven-Port Morris. Every figure it shows is written out below it." [ref=e23]
+          - list [ref=e24]:
+            - listitem [ref=e25]: Sidewalk, not counted at all
+            - listitem [ref=e27]: Counted, unreachable in heat
+            - listitem [ref=e29]: Reachable in heat
+            - listitem [ref=e31]: Cooling element, quarter mile
+        - generic [ref=e33]:
+          - table [ref=e34]:
+            - caption [ref=e35]: Share of Mott Haven-Port Morris's sidewalk network within a quarter mile of a cooling element, measured three ways
+            - rowgroup [ref=e36]:
+              - row [ref=e37]:
+                - columnheader "Measured" [ref=e38]
+                - columnheader "Share" [ref=e39]
+            - rowgroup [ref=e40]:
+              - row [ref=e41]:
+                - rowheader "As the crow flies" [ref=e42]
+                - cell "56.8%" [ref=e45]
+              - row [ref=e46]:
+                - rowheader "Walking the network" [ref=e47]
+                - cell "42.9%" [ref=e50]
+              - row [ref=e51]:
+                - rowheader "Walking it in the heat" [ref=e52]
+                - cell "21.4%" [ref=e55]
+          - generic [ref=e56]:
+            - paragraph [ref=e57]:
+              - strong [ref=e58]: "9"
+              - text: cooling elements for 3.81 km² of Mott Haven-Port Morris. Spray showers and misting stations, counted without drinking fountains.
+            - paragraph [ref=e59]: "The claim under test: “no New Yorker in the most heat-burdened communities is more than 1/4 mile away from an outdoor cooling element” NYC DEP, Mayor de Blasio Expands Cool It! NYC, 24 June 2020. Radiant temperature here is a proxy, not SOLWEIG. The City also opens hydrant spray caps during heat advisories; those are not in the published dataset and are not counted."

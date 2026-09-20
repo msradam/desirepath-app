@@ -211,12 +211,13 @@ function loadComfort(): ComfortFeature[] {
 // ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
   const [, , cmd, ...rest] = process.argv;
-  if (!cmd || !['plan', 'find', 'reach', 'geocode', 'diagnose', 'thermal', 'thermal-suite', 'transit', 'transit-scan', 'coverage'].includes(cmd)) {
+  if (!cmd || !['plan', 'find', 'reach', 'geocode', 'diagnose', 'thermal', 'thermal-suite', 'transit', 'transit-scan', 'coverage', 'nl'].includes(cmd)) {
     console.error('Usage:');
     console.error('  npx tsx scripts/route-cli.ts plan "<from>" "<to>" [profile]');
     console.error('  npx tsx scripts/route-cli.ts find "<near>" "<resource_type>" [profile]');
     console.error('  npx tsx scripts/route-cli.ts reach "<near>" "<resource_type>" [max_minutes] [profile]');
     console.error('  npx tsx scripts/route-cli.ts geocode "<query>"');
+  console.error('  npx tsx scripts/route-cli.ts nl "<plain english query>" [reps]   # end to end, N times');
     console.error('  npx tsx scripts/route-cli.ts thermal "<from>" "<to>" [profile] [sun_inflation]');
     console.error('  npx tsx scripts/route-cli.ts thermal-suite                        # the regression battery');
     console.error('  npx tsx scripts/route-cli.ts transit "<from>" "<to>" [profile] [sun_inflation]');
@@ -812,6 +813,59 @@ async function main() {
     log(`from=${c.bold(from)}  to=${c.bold(to)}  profile=${c.bold(profile)}`);
     const result = await service.planRoute({ from, to, profile, night: false });
     printResult(result);
+    return;
+  }
+
+  // The whole chain, the way the app runs it: sentence -> profile -> tool ->
+  // route. Exists so a candidate example query can be tested for RELIABILITY
+  // rather than demoed once, because stage 1 is not deterministic in practice
+  // and a query that works on the run you happened to watch is not a query
+  // that works.
+  if (cmd === 'nl') {
+    const reps = Number(rest[rest.length - 1]) >= 1 ? Number(rest.pop()) : 1;
+    const query = rest.join(' ');
+    const { OllamaAdapter } = await import('../src/lib/adapters/llm-ollama.ts');
+    const { ExtractionService, resolveEffects } = await import('../src/lib/services/extraction.ts');
+    const { dispatchFor } = await import('../src/lib/domain/dispatch.ts');
+    const { CONDITION_EFFECTS, CONDITION_DEFAULTS } = await import('../src/lib/domain/condition-effects.ts');
+
+    const svc = new ExtractionService(new OllamaAdapter());
+    let ok = 0;
+    const outcomes: string[] = [];
+    for (let i = 0; i < reps; i++) {
+      try {
+        const { profile } = await svc.extract(query);
+        const tool = dispatchFor(profile);
+        const eff = resolveEffects(profile.conditions, CONDITION_EFFECTS, CONDITION_DEFAULTS);
+        const shared = { profile: eff.router_profile, night: false,
+          thermal: { heat_aware: eff.heat_aware, sun_inflation: eff.sun_inflation } };
+        let res: any;
+        if (tool === 'plan_route') {
+          res = await service.planRoute({ ...shared, from: profile.origin, to: profile.destination ?? '' } as any);
+          if (!res.ok && profile.resource_types.length) {
+            res = await service.findComfortAndRoute({ ...shared, near: profile.origin, resource_types: profile.resource_types } as any);
+          }
+        } else if (tool === 'find_reachable_resources') {
+          res = await service.findReachable({ ...shared, near: profile.origin,
+            resource_types: profile.resource_types,
+            ...(profile.max_minutes === null ? {} : { max_minutes: profile.max_minutes }) } as any);
+        } else {
+          res = await service.findComfortAndRoute({ ...shared, near: profile.origin, resource_types: profile.resource_types } as any);
+        }
+        const good = res.ok && (res.pois ? res.pois.length > 0 : true);
+        if (good) ok++;
+        const what = res.ok
+          ? (res.pois ? `${res.pois.length} places` : `${res.destination_name}`)
+          : `FAIL ${res.error}`;
+        outcomes.push(`${tool.padEnd(24)} ${eff.router_profile.padEnd(18)} ${what}`);
+      } catch (e) {
+        outcomes.push(`EXTRACTION FAILED  ${(e as Error).message}`);
+      }
+    }
+    log(`\n  ${c.bold(query)}`);
+    for (const o of outcomes) log(`    ${o}`);
+    const rate = (100 * ok) / reps;
+    log(`  ${ok}/${reps} usable  ${rate === 100 ? c.bold('RELIABLE') : rate >= 60 ? 'flaky' : c.bold('UNUSABLE')}`);
     return;
   }
 
