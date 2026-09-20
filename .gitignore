@@ -50,3 +50,6 @@ data/thermal/
 # Screenshots from UI verification passes
 app/shots/
 app/.playwright-mcp/
+
+# Demo scratch
+/tmp/ariadne-cold-*

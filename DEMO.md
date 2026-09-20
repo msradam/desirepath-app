@@ -32,15 +32,23 @@ Have `http://localhost:5190/coverage?nta=BK1602` open in a second tab, already l
 
 ## Timings, measured
 
-| Step | Cold | Warm |
-|---|---|---|
-| Model load, local weights | about 2 min | about 20 s from IndexedDB |
-| One extraction | median 3.4 s, p95 4.5 s | same |
-| Route dispatch after accept | under 1 s | same |
-| Coverage view render | about 2 s | under 1 s |
+Three cold runs, fresh browser profile each time, measured end to end.
 
-Pace the script around the extraction taking three to five seconds. It is not instant and
-pretending otherwise on stage reads badly.
+| Step | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| Coverage view, Brownsville | 0.4 s | 0.2 s | 0.2 s |
+| Switching to North Corona | 0.0 s | 0.1 s | 0.0 s |
+| **Model boot, cold profile** | **22.6 s** | **28.9 s** | **26.0 s** |
+| Query to confirmation card | 2.4 s | 2.4 s | 2.4 s |
+| Accept to route drawn | 0.1 s | 0.1 s | 0.1 s |
+
+Worst case to plan around: **29 seconds of model boot**, then everything is fast. Open
+the app tab and let it boot while you deliver the coverage argument, which needs no model
+at all. By the time you switch tabs it is ready.
+
+All three runs produced the same gap (9.4), the same route
+(`25min · 1.2 mi · RUNTIME ● local`), and the same wrong intent
+("What can I reach"), so the script below is reliable rather than lucky.
 
 ---
 
@@ -155,9 +163,9 @@ Restore with `curl http://localhost:5190/__online` before anything else.
 the coverage tab, which needs no model, and run the whole argument from there. The
 coverage view is the deliverable; the router is the demonstration.
 
-**Extraction refuses.** Measured at 3.92 percent before the retry that now ships. You will
-see an error in the record. Retype the same query; it is transient, every fixture that
-refused succeeded on a repeat.
+**Extraction refuses.** Measured at 3.92 percent before the single retry that now ships,
+and 0 of 102 after it. If you somehow see one, retype the same query: it is transient,
+and every refusal observed was rescued by one retry.
 
 **The card shows something absurd.** Good. That is the demonstration. Correct it on the
 card and accept. The point of the card is that a model this small is wrong often and a
@@ -179,7 +187,7 @@ get "0 places" rather than a line.
 | Best thermal routing case | East Harlem, **−14.5 °C mean MRT for +22 m**, +1.6% |
 | Extraction | **3 of 17** fixtures exactly right |
 | Intent | wrong in **65%** of runs; majority-class baseline would be 53% wrong |
-| Decoder refusals | **3.92%** before retry |
+| Decoder refusals | **3.92%** before retry, **0 of 102** after |
 | Heat deaths, NYC | about **500 a year** (DOHMH, 2018-2022) |
 | PM2.5 deaths, NYC | about **2,000 a year** (DOHMH). Not "more than 2,000", and not one in twenty |
 

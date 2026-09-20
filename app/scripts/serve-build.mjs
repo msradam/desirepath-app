@@ -38,6 +38,16 @@ const TYPES = {
 
 const served = new Set();
 let refusing = false;
+let restoreTimer = null;
+
+/**
+ * How long the network stays cut.
+ *
+ * It restores itself because a demo that crashes mid-offline otherwise leaves
+ * the server refusing every request, and the next thing anyone tries looks
+ * like the app is broken rather than like the switch is still flipped.
+ */
+const OFFLINE_SECONDS = 180;
 
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -46,12 +56,21 @@ const server = createServer((req, res) => {
   if (path === '/__offline') {
     // Flip to refusing everything. The page stays loaded; the network dies.
     refusing = true;
+    clearTimeout(restoreTimer);
+    restoreTimer = setTimeout(() => {
+      refusing = false;
+      console.log('  network restored automatically');
+    }, OFFLINE_SECONDS * 1000);
     res.writeHead(200, { 'content-type': 'text/plain' });
-    res.end(`offline. ${served.size} assets were served before the cut.\n`);
+    res.end(
+      `offline. ${served.size} assets were served before the cut. ` +
+        `Restores itself in ${OFFLINE_SECONDS}s, or GET /__online now.\n`,
+    );
     return;
   }
   if (path === '/__online') {
     refusing = false;
+    clearTimeout(restoreTimer);
     res.writeHead(200, { 'content-type': 'text/plain' });
     res.end('online\n');
     return;

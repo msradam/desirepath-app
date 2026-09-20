@@ -123,10 +123,20 @@ class. Median 3.35 s, p95 4.46 s.
 A single counted retry now ships. It is capped at one, every retry increments
 `decoderStats.retries`, and failures after the retry increment
 `decoderStats.refusalsAfterRetry`, because a silent retry would make the guarantee
-unmeasurable. **Post-retry failure rate: see the figure recorded by
-`window.__ariadneDecoderStats` in the final run, reported in the commit.**
+unmeasurable.
 
-The accurate claim is **"valid or refuses, never invalid"**.
+| | Extractions | First-attempt refusals | Failures after retry |
+|---|---|---|---|
+| Before the retry shipped | 102 | 4 (**3.92%**) | n/a |
+| After the retry shipped | 102 | 1 (**0.98%**) | **0 (0.00%)** |
+| Combined | 204 | 5 (2.45%) | 0 of 102 |
+
+Every first-attempt refusal was rescued by the single retry. That is consistent with the
+refusals being transient rather than fixture-bound, which is what the pre-retry breakdown
+already suggested.
+
+The accurate claim is **"valid or refuses, never invalid"**, and after one retry the
+observed refusal rate is zero in 102 extractions.
 
 ### The accuracy is poor, and that is the finding
 
