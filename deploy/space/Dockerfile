@@ -24,21 +24,23 @@ ENV OLLAMA_MODELS=/opt/ollama/models
 COPY pull-model.sh /tmp/pull-model.sh
 RUN chmod +x /tmp/pull-model.sh && /tmp/pull-model.sh && rm /tmp/pull-model.sh
 
-# Spaces run the container as uid 1000.
-RUN useradd -m -u 1000 user || true
+# Spaces run the container as uid 1000, and everything below refers to that
+# uid numerically rather than by name. The ollama base image already has a user
+# at 1000 under a different name, so `useradd -u 1000 user` fails, `|| true`
+# swallows it, and every later `chown user:user` dies with "invalid user".
 ENV HOME=/home/user \
     OLLAMA_HOST=127.0.0.1:11434 \
     PORT=7860
 
 WORKDIR /app
-COPY --chown=user:user public/ /app/public/
-COPY --chown=user:user server.mjs /app/server.mjs
-COPY --chown=user:user start.sh /app/start.sh
+COPY --chown=1000:1000 public/ /app/public/
+COPY --chown=1000:1000 server.mjs /app/server.mjs
+COPY --chown=1000:1000 start.sh /app/start.sh
 RUN chmod +x /app/start.sh \
- && chown -R user:user /opt/ollama /app \
- && mkdir -p /home/user/.ollama && chown -R user:user /home/user
+ && mkdir -p /home/user/.ollama \
+ && chown -R 1000:1000 /opt/ollama /app /home/user
 
-USER user
+USER 1000
 EXPOSE 7860
 
 # The base image sets an entrypoint of /bin/ollama; we need a shell instead.
