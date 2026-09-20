@@ -13,6 +13,8 @@ import type {
 } from '../domain/route';
 import { PROFILE_MAP } from '../domain/profile';
 import type { RouterProfileId } from '../domain/profile';
+import type { ThermalArgs, StopThermalIndex } from '../domain/thermal';
+import { THERMAL_OFF, thermalWaitSeconds } from '../domain/thermal';
 import { validateSafetyDestination, safetySummary } from './safety';
 import type { ComfortCategory } from '../domain/poi';
 
@@ -28,7 +30,20 @@ const ME_PATTERNS = /^@?(me|here|my\s*location|current\s*location|i\s*am\s*here)
 export const NO_ORIGIN_ERROR = 'no_origin';
 
 const WALK_MPS = 1.25;
+
+/**
+ * Fixed cost of using a station at all: stairs, fare gates, finding the
+ * platform. Separate from the wait, which is now priced by where you spend it.
+ */
 const STATION_OVERHEAD_S = 90;
+
+/**
+ * Ceiling on a modelled wait. RAPTOR will happily return a departure two hours
+ * out at night, and multiplying that by a thermal load produces a number that
+ * swamps every other term. Nobody stands on a platform for 25 minutes without
+ * reconsidering, so the wait is capped before it is priced.
+ */
+const MAX_MODELLED_WAIT_MIN = 25;
 
 export class RouterService {
   constructor(
@@ -37,6 +52,12 @@ export class RouterService {
     private transit: TransitRouterAdapter | null,
     private comfortFeatures: ComfortFeature[],
     private geolocation: GeolocationAdapter | null = null,
+    /**
+     * Platform radiant environment by GTFS stop id, from
+     * pipeline/thermal/stops.py. Null means transit waits are priced by
+     * duration alone, exactly as they were before the thermal layer.
+     */
+    private stopThermal: StopThermalIndex | null = null,
   ) {}
 
   private resolveProfile(profile: string): RouterProfileId {
@@ -68,7 +89,8 @@ export class RouterService {
   }
 
   async planRoute(args: {
-    from: string; to: string; profile: string; night?: boolean;
+    from: string; to: string; profile: string; night?: boolean; thermal?: ThermalArgs;
+    departure_minutes?: number;
   }): Promise<ComfortRouteOk | ToolError> {
     const [aRes, bRes] = await Promise.all([
       this.resolveOrigin(args.from),
@@ -77,11 +99,12 @@ export class RouterService {
     if ('ok' in aRes && aRes.ok === false) return aRes;
     const a = aRes as Landmark;
     if (!bRes) return { ok: false, error: `unknown destination: "${args.to}"` };
-    return this.routeBetween(a, bRes, args.profile, !!args.night, [], null);
+    return this.routeBetween(a, bRes, args.profile, !!args.night, [], null, args.thermal, args.departure_minutes);
   }
 
   async findComfortAndRoute(args: {
-    near: string; resource_types: string[]; profile: string; night?: boolean;
+    near: string; resource_types: string[]; profile: string; night?: boolean; thermal?: ThermalArgs;
+    departure_minutes?: number;
   }): Promise<ComfortRouteOk | ToolError> {
     const aRes = await this.resolveOrigin(args.near);
     if ('ok' in aRes && aRes.ok === false) return aRes;
@@ -114,11 +137,11 @@ export class RouterService {
       lng: pick.geometry.coordinates[0],
       display: pick.properties.name,
     };
-    return this.routeBetween(a, dest, args.profile, !!args.night, cands, pick);
+    return this.routeBetween(a, dest, args.profile, !!args.night, cands, pick, args.thermal, args.departure_minutes);
   }
 
   async findReachable(args: {
-    near: string; resource_types: string[]; profile: string; max_minutes?: number;
+    near: string; resource_types: string[]; profile: string; max_minutes?: number; thermal?: ThermalArgs;
   }): Promise<ReachableRouteOk | ToolError> {
     const aRes = await this.resolveOrigin(args.near);
     if ('ok' in aRes && aRes.ok === false) return aRes;
@@ -127,7 +150,7 @@ export class RouterService {
 
     const p = this.resolveProfile(args.profile);
     const maxMin = args.max_minutes ?? 15;
-    const iso = this.pedestrian.shortestPathTree({ from: [a.lng, a.lat], profile: p, maxMinutes: maxMin });
+    const iso = this.pedestrian.shortestPathTree({ from: [a.lng, a.lat], profile: p, maxMinutes: maxMin, thermal: args.thermal });
     if (!iso) return { ok: false, error: `could not compute isochrone from "${args.near}"` };
 
     const maxCostM = maxMin * 60 * WALK_MPS;
@@ -164,19 +187,25 @@ export class RouterService {
     a: Landmark, b: Landmark,
     profile: string, night: boolean,
     cands: Array<{ feature: ComfortFeature; dist: number }>,
-    pick: ComfortFeature | null
+    pick: ComfortFeature | null,
+    thermal: ThermalArgs = THERMAL_OFF,
+    departureMinutes?: number,
   ): Promise<ComfortRouteOk | ToolError> {
     const p = this.resolveProfile(profile);
     const t0 = performance.now();
+    // Minutes since midnight, local. Explicit rather than implicit because the
+    // thermal grid is precomputed for one hour: pricing a platform wait at
+    // 01:00 against a grid built for 15:00 is incoherent, and silently using
+    // the wall clock hides that.
     const now = new Date();
-    const depMinutes = now.getHours() * 60 + now.getMinutes();
+    const depMinutes = departureMinutes ?? now.getHours() * 60 + now.getMinutes();
 
     // Try direct walk. Failure is non-fatal. Long inter-borough trips often
     // can't walk the full distance but should still be solved by transit.
     let directRes: ReturnType<PedestrianRouterAdapter['route']> | null = null;
     let walkErr: string | null = null;
     try {
-      directRes = this.pedestrian.route({ from: [a.lng, a.lat], to: [b.lng, b.lat], profile: p, night });
+      directRes = this.pedestrian.route({ from: [a.lng, a.lat], to: [b.lng, b.lat], profile: p, night, thermal });
     } catch (e) {
       walkErr = String((e as Error)?.message ?? e);
     }
@@ -186,10 +215,18 @@ export class RouterService {
     // Short-walk fast path: if walk-only succeeded, is short, and there's no transit, take it.
     if (walkOnly && (!this.transit || (directRes && directRes.length_m < 600))) return walkOnly;
 
-    // Try multimodal. Baseline to beat is walk-only's time, or Infinity if walk failed.
-    const baselineSeconds = directRes ? directRes.length_m / WALK_MPS : Infinity;
+    // Try multimodal. The baseline to beat is walk-only, measured in the same
+    // currency the multimodal branch will be measured in. With heat awareness
+    // on that currency is thermal seconds, where a metre of exposed pavement
+    // counts for more than a metre of shade. Mixing the two currencies here
+    // would compare a heat-weighted transit trip against a plain walk and
+    // always pick transit.
+    const heatAware = !!thermal.heat_aware;
+    const baselineSeconds = directRes
+      ? (heatAware ? directRes.cost : directRes.length_m) / WALK_MPS
+      : Infinity;
     const mm = this.transit
-      ? await this.tryMultimodal(a, b, p, night, depMinutes, baselineSeconds, pick, cands, t0)
+      ? await this.tryMultimodal(a, b, p, night, depMinutes, baselineSeconds, pick, cands, t0, thermal)
       : null;
 
     if (mm) return mm;
@@ -232,9 +269,11 @@ export class RouterService {
     baselineSeconds: number,
     pick: ComfortFeature | null,
     cands: Array<{ feature: ComfortFeature; dist: number }>,
-    t0: number
+    t0: number,
+    thermal: ThermalArgs = THERMAL_OFF,
   ): Promise<ComfortRouteOk | null> {
     const transit = this.transit!;
+    const heatAware = !!thermal.heat_aware;
     const requireAda = profile === 'manual_wheelchair';
     const radius = requireAda ? 4.0 : 2.0;
 
@@ -291,8 +330,8 @@ export class RouterService {
       let walkIn: ReturnType<PedestrianRouterAdapter['route']>;
       let walkOut: ReturnType<PedestrianRouterAdapter['route']>;
       try {
-        walkIn  = this.pedestrian.route({ from: [a.lng, a.lat],       to: [origLon, origLat],     profile, night });
-        walkOut = this.pedestrian.route({ from: [alightLon, alightLat], to: [b.lng, b.lat],         profile, night });
+        walkIn  = this.pedestrian.route({ from: [a.lng, a.lat],       to: [origLon, origLat],     profile, night, thermal });
+        walkOut = this.pedestrian.route({ from: [alightLon, alightLat], to: [b.lng, b.lat],         profile, night, thermal });
       } catch { continue; }
 
       let transitMinutes = 15;
@@ -302,7 +341,45 @@ export class RouterService {
         if (typeof dep === 'number' && typeof arr === 'number' && arr > dep) transitMinutes = arr - dep;
       } catch { /* keep default */ }
 
-      const total = walkIn.length_m / WALK_MPS + transitMinutes * 60 + walkOut.length_m / WALK_MPS + STATION_OVERHEAD_S;
+      // ── the wait, priced by where it is spent ────────────────────────────
+      //
+      // This is the part that makes the router behave differently from every
+      // other transit router. A wait has a duration AND a location, and that
+      // location has a radiant environment. Standing eight minutes on an
+      // unshaded elevated platform in July is not the same as standing eight
+      // minutes underground, and charging both 90 flat seconds is what sends a
+      // heat-vulnerable person to the worse one to save three minutes.
+      //
+      // Minotor times are minutes since midnight. route.departureTime() is NOT
+      // the boarding time: it back-subtracts the transfer time that precedes
+      // the first vehicle leg, modelling when you must leave the origin. The
+      // wait we want runs from arriving at the platform to the doors opening,
+      // so it comes from the first vehicle leg's own departureTime.
+      const firstVehicleLeg = route.legs.find(
+        (l) => typeof (l as { departureTime?: unknown }).departureTime === 'number',
+      ) as { departureTime: number } | undefined;
+
+      const rawWaitMin = firstVehicleLeg
+        ? firstVehicleLeg.departureTime - depMinutes
+        : 0;
+      const waitMinutes = Math.min(MAX_MODELLED_WAIT_MIN, Math.max(0, rawWaitMin));
+
+      const platform = orig.sourceStopId
+        ? this.stopThermal?.get(orig.sourceStopId)
+        : undefined;
+      const wait = thermalWaitSeconds(waitMinutes * 60, platform, thermal);
+
+      // The decision metric is thermal seconds; the number shown to the user
+      // stays in real seconds. Conflating them is how a demo ends up claiming
+      // a 40-minute walk takes 12 minutes.
+      const walkInSec  = (heatAware ? walkIn.cost  : walkIn.length_m)  / WALK_MPS;
+      const walkOutSec = (heatAware ? walkOut.cost : walkOut.length_m) / WALK_MPS;
+      const total = walkInSec + transitMinutes * 60 + walkOutSec + wait.seconds + STATION_OVERHEAD_S;
+
+      const realSeconds =
+        walkIn.length_m / WALK_MPS + transitMinutes * 60 + walkOut.length_m / WALK_MPS
+        + waitMinutes * 60 + STATION_OVERHEAD_S;
+
       if (total >= bestTotal) continue;
       bestTotal = total;
 
@@ -331,7 +408,17 @@ export class RouterService {
         coords: [...walkIn.coords, [origLon, origLat], [alightLon, alightLat], ...walkOut.coords],
         elapsed_ms: Math.round(performance.now() - t0),
         mode: 'walk_transit_walk', transit_minutes: transitMinutes, walking_meters: walkingMeters,
-        total_seconds: Math.round(total),
+        total_seconds: Math.round(realSeconds),
+        thermal_seconds: Math.round(total),
+        wait: {
+          minutes: waitMinutes,
+          truncated: rawWaitMin > MAX_MODELLED_WAIT_MIN,
+          platform_mrt_c: wait.mrt_c,
+          platform_structure: platform?.structure ?? null,
+          underground: platform?.underground ?? null,
+          thermal_load: Number(wait.load.toFixed(3)),
+          tier: wait.tier,
+        },
         picked_stops: { board: orig.name, alight: alightStop.name },
         multimodal_legs: legs,
         transit_warning: warning,

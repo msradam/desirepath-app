@@ -32,7 +32,11 @@ import type { TransitRouterAdapter } from '../src/lib/adapters/transit-router.ts
 import { FuseGeocoderAdapter } from '../src/lib/adapters/geocoder.ts';
 import type { GeocoderAdapter } from '../src/lib/adapters/geocoder.ts';
 import { resolveImpactedInternal } from '../src/lib/adapters/feed-mta-outages.ts';
-import { thermalArgsJSON, routeThermalStats, THERMAL_ON, THERMAL_OFF } from '../src/lib/domain/thermal.ts';
+import {
+  thermalArgsJSON, routeThermalStats, makeStopThermalIndex,
+  THERMAL_ON, THERMAL_OFF,
+} from '../src/lib/domain/thermal.ts';
+import type { StopThermalIndex } from '../src/lib/domain/thermal.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -183,6 +187,18 @@ async function makeTransitAdapter(): Promise<TransitRouterAdapter | undefined> {
   };
 }
 
+// ── Platform thermal profile ───────────────────────────────────────────────
+function loadStopThermal(): StopThermalIndex | null {
+  const file = path.join(DATA, 'thermal-stops.json');
+  if (!fs.existsSync(file)) {
+    log(c.yellow('  no thermal-stops.json; transit waits priced by duration alone'));
+    return null;
+  }
+  const index = makeStopThermalIndex(JSON.parse(fs.readFileSync(file, 'utf8')));
+  log(c.dim(`Platform thermal: ${index.size} stops (underground assumed ${index.undergroundAssumptionC} C)`));
+  return index;
+}
+
 // ── Comfort features ───────────────────────────────────────────────────────
 function loadComfort(): ComfortFeature[] {
   log(c.dim('Loading comfort features…'));
@@ -195,7 +211,7 @@ function loadComfort(): ComfortFeature[] {
 // ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
   const [, , cmd, ...rest] = process.argv;
-  if (!cmd || !['plan', 'find', 'reach', 'geocode', 'diagnose', 'thermal', 'thermal-suite'].includes(cmd)) {
+  if (!cmd || !['plan', 'find', 'reach', 'geocode', 'diagnose', 'thermal', 'thermal-suite', 'transit'].includes(cmd)) {
     console.error('Usage:');
     console.error('  npx tsx scripts/route-cli.ts plan "<from>" "<to>" [profile]');
     console.error('  npx tsx scripts/route-cli.ts find "<near>" "<resource_type>" [profile]');
@@ -203,6 +219,7 @@ async function main() {
     console.error('  npx tsx scripts/route-cli.ts geocode "<query>"');
     console.error('  npx tsx scripts/route-cli.ts thermal "<from>" "<to>" [profile]   # shortest vs heat-aware');
     console.error('  npx tsx scripts/route-cli.ts thermal-suite                        # the regression battery');
+    console.error('  npx tsx scripts/route-cli.ts transit "<from>" "<to>" [profile]     # does heat change the mode?');
     console.error('\nProfiles: generic_pedestrian | wheelchair | low_vision | slow_walker | stroller');
     console.error('Resource types: cool_indoor warm_indoor bathroom seating quiet_indoor wifi_power');
     console.error('               linknyc food_pantry senior_center harm_reduction medical mental_health');
@@ -215,7 +232,8 @@ async function main() {
   const comfort = loadComfort();
   const geocoder = await makeGeocoderAdapter();
   const transit = await makeTransitAdapter();
-  const service = new RouterService(geocoder as any, pedestrian, transit, comfort);
+  const stopThermal = loadStopThermal();
+  const service = new RouterService(geocoder as any, pedestrian, transit, comfort, null, stopThermal);
 
   logSection(cmd.toUpperCase());
 
@@ -335,6 +353,73 @@ async function main() {
       }
       break;
     }
+    return;
+  }
+
+  if (cmd === 'transit') {
+    const [from, to, profile = 'generic_pedestrian'] = rest;
+    log(`from=${c.bold(from)}  to=${c.bold(to)}  profile=${c.bold(profile)}`);
+
+    // Depart at the hour the thermal grid was built for. Comparing a wait
+    // priced at the current wall clock against a 15:00 MRT field would be
+    // comparing two different afternoons.
+    const DEMO_DEPARTURE_MIN = Number(process.env.ARIADNE_DEPART_MIN ?? 15 * 60);
+    log(c.dim(`departure ${Math.floor(DEMO_DEPARTURE_MIN / 60)}:${String(DEMO_DEPARTURE_MIN % 60).padStart(2, '0')} local, matching the thermal grid hour`));
+
+    const variants = [
+      { label: 'distance-optimal', thermal: THERMAL_OFF },
+      { label: 'heat-aware      ', thermal: THERMAL_ON },
+    ];
+    const out: any[] = [];
+    for (const v of variants) {
+      const r = await service.planRoute({
+        from, to, profile, night: false, thermal: v.thermal,
+        departure_minutes: DEMO_DEPARTURE_MIN,
+      });
+      out.push({ ...v, r });
+    }
+
+    log('');
+    for (const { label, r } of out) {
+      if (!r.ok) { log(`  ${label}  ${c.red(r.error)}`); continue; }
+      const mins = Math.round((r.total_seconds ?? 0) / 60);
+      log(`  ${c.bold(label)}  mode=${c.yellow(r.mode)}  ${mins} min real  ${r.walking_meters} m walking`);
+      if (r.picked_stops) {
+        log(`                    board ${r.picked_stops.board} -> alight ${r.picked_stops.alight}`);
+      }
+      if (r.wait) {
+        const w = r.wait;
+        const where = w.underground === null ? 'unclassified platform'
+          : w.underground ? `underground (${w.platform_structure})`
+          : `open air (${w.platform_structure})`;
+        const mrt = w.platform_mrt_c === null ? 'no MRT' : `${w.platform_mrt_c} C`;
+        log(`                    wait ${w.minutes} min at ${where}, ${mrt}, load ${w.thermal_load}x [${w.tier}]${w.truncated ? ' (capped)' : ''}`);
+      }
+    }
+
+    const [plain, heat] = out;
+    log('');
+    if (plain.r.ok && heat.r.ok) {
+      if (plain.r.mode !== heat.r.mode) {
+        log(c.green(`  MODE CHANGED: ${plain.r.mode} -> ${heat.r.mode}`));
+        if (heat.r.mode === 'walk_only') {
+          log(c.dim('  Heat made the platform wait expensive enough that walking won.'));
+        } else {
+          const w = heat.r.wait;
+          const where = w?.underground ? 'an underground platform' : 'the platform';
+          log(c.dim(`  Heat made the street walk expensive enough that waiting on ${where} won.`));
+          if (w?.underground) {
+            log(c.dim(`  This is the summer inversion: ${w.platform_mrt_c} C below ground beats an exposed street above it.`));
+          }
+        }
+      } else if (JSON.stringify(plain.r.picked_stops) !== JSON.stringify(heat.r.picked_stops)) {
+        log(c.green(`  STATION CHANGED: ${plain.r.picked_stops?.board} -> ${heat.r.picked_stops?.board}`));
+        log(c.dim(`  Same mode, but heat moved the boarding station.`));
+      } else {
+        log(c.dim(`  same mode (${plain.r.mode}) and same stops. Heat did not change the decision here.`));
+      }
+    }
+    log(c.dim('\n  Platform MRT: proxy above ground, ASSUMED constant underground. See data/thermal-stops.json'));
     return;
   }
 

@@ -1,28 +1,20 @@
-"""Mean radiant temperature proxy on a 10 m raster.
+"""Urban geometry for the thermal grid: shadow and sky view factor.
 
-This is a reduction of what SOLWEIG computes, not a reimplementation of it, and
-the output is labelled `proxy` everywhere it surfaces so nobody mistakes it for
-a modelled MRT field.
+This module answers two geometric questions per cell, against a building height
+raster: how much of the sky hemisphere is visible, and is the direct beam
+reaching the ground. `radiation.py` turns those two numbers into a mean radiant
+temperature through a published radiation budget.
 
-SOLWEIG drives street-level MRT from direct shortwave gain, diffuse and
-reflected shortwave governed by sky view factor, and longwave from the sky and
-from hot vertical surfaces. Within one dense neighbourhood on a clear summer
-afternoon, the spread between the hottest and coolest point on a street is
-dominated by the first two terms. This module keeps those and folds the rest
-into two calibration constants:
+The split matters. Geometry is where this differs from SOLWEIG, which resolves
+the same quantities at 1 m against a LiDAR digital surface model rather than at
+4 m against extruded building footprints. Physics is where it agrees: the Tmrt
+equation, its angular factors and its absorption coefficients are the published
+ones. The output is labelled tier=proxy everywhere it appears.
 
-    MRT = T_air + K_DIRECT * sunlit + K_DIFFUSE * SVF
-
-where `sunlit` is 1 in full sun, 0 in building shadow, and the canopy
-transmissivity under a tree crown; and SVF is estimated by hemispherical
-integration over sixteen azimuths against the same height raster SOLWEIG would
-call a digital surface model.
-
-The three constants below are calibration knobs, not physics. They are set so
-that a fully exposed asphalt street at a July afternoon peak lands near 62 C
-and a deep building shadow lands near 35 C, which is the spread the SOLWEIG
-literature reports for dense low-canopy grids. A real run replaces this module
-wholesale; nothing downstream changes, because the interface is the raster.
+Sky view factor is computed by hemispherical integration over sixteen azimuths,
+following the standard discrete-direction approach: for each azimuth the
+horizon angle is the largest elevation any obstacle subtends, and the visible
+sky fraction in that direction is the cosine squared of it.
 """
 
 from __future__ import annotations
@@ -33,14 +25,16 @@ from datetime import datetime
 
 import numpy as np
 
+from pipeline.thermal import radiation as R
+
 CELL_M = 4.0
 
-# Calibration. See the module docstring: these three set the scale, and the
-# geometry sets the pattern.
-T_AIR_C = 33.0          # dry-bulb air temperature on a July afternoon in NYC
-K_DIRECT_C = 24.0       # MRT added by unobstructed direct beam at high sun
-K_DIFFUSE_C = 6.0       # MRT added by an unobstructed sky hemisphere
-CANOPY_TRANSMISSIVITY = 0.20  # fraction of the direct beam passing a summer crown
+#: Fraction of the direct beam transmitted through a tree crown in leaf.
+#: SOLWEIG's default transmissivity for vegetation in full leaf is 3 percent;
+#: NYC street trees are a mix of species and crown densities and many are
+#: pruned hard under utility lines, so this is deliberately more permissive.
+#: It is the one place a crown is treated as a filter rather than a wall.
+CANOPY_TRANSMISSIVITY = 0.15
 
 # How far to look when testing for obstruction. At the demo hour the sun sits
 # at 58 degrees, so a 40 m building casts a 25 m shadow; 150 m covers the low
@@ -195,12 +189,15 @@ def build(
     when: datetime,
     altitude_deg: float,
     azimuth_deg: float,
+    met: R.Meteorology,
     cell_m: float = CELL_M,
 ) -> ThermalGrid:
     """Assemble the MRT raster from the two height rasters."""
     svf = sky_view_factor(building_h, cell_m)
     lit = sunlit_fraction(building_h, canopy_h, altitude_deg, azimuth_deg, cell_m)
-    mrt = (T_AIR_C + K_DIRECT_C * lit + K_DIFFUSE_C * svf).astype(np.float32)
+    mrt = R.mean_radiant_temperature(
+        svf, lit, altitude_deg, azimuth_deg, when.timetuple().tm_yday, met,
+    )
 
     # Cells occupied by a building are not walkable surface. Marking them NaN
     # keeps them from being sampled onto an edge that clips a building corner.
@@ -288,12 +285,6 @@ def demo() -> None:
     assert shaded[10, 10] == CANOPY_TRANSMISSIVITY
     both = sunlit_fraction(wall, canopy, 20.0, 90.0)
     assert both[10, 10] == 0.0, "a building shadow must win over canopy"
-
-    # The MRT scale lands where the calibration says it should.
-    open_sun = T_AIR_C + K_DIRECT_C * 1.0 + K_DIFFUSE_C * 1.0
-    deep_shade = T_AIR_C + K_DIRECT_C * 0.0 + K_DIFFUSE_C * 0.25
-    assert 60.0 < open_sun < 65.0, open_sun
-    assert 33.0 < deep_shade < 36.0, deep_shade
 
     # The byte round trip, including the reserved zero.
     probe = np.array([np.nan, 20.0, 25.0, 40.25, 62.0, 200.0], dtype=np.float32)

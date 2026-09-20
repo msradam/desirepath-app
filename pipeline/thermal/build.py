@@ -20,6 +20,7 @@ from pyproj import Transformer
 from shapely.geometry import shape
 
 from pipeline.thermal import grid as G
+from pipeline.thermal import radiation as R
 from pipeline.thermal import sources as S
 from pipeline.thermal.solar import solar_position
 
@@ -39,6 +40,34 @@ WGS84 = "EPSG:4326"
 # much of their length was surveyed. The underlying asymmetry is a known
 # limitation; see HANDOFF.md.
 MARGIN_M = 700.0
+
+# ── reference meteorology ────────────────────────────────────────────────────
+#
+# The grid answers "where is it hot when it matters", so the design condition
+# is a heat advisory, not an average afternoon.
+#
+# Air temperature: the National Weather Service New York office issues a Heat
+# Advisory when the heat index is forecast to reach 95 to 99 F. Solving the NWS
+# Rothfusz heat index for 95 F at the normal dew point below gives 34.3 C.
+#
+# Dew point and wind: NOAA NCEI 1991-2020 hourly climate normals for LaGuardia
+# (USW00014732), 21 July at 15:00 local, the station nearest the demo
+# neighbourhoods. Dew point normal 63.2 F, wind 12.1 mph.
+#
+# The wind is an open-airport 10 m measurement, which is what UTCI is defined
+# against. A street canyon is more sheltered, and less wind means more heat
+# stress, so using the airport value makes the derived thresholds conservative
+# in the permissive direction. thresholds.py reports the sensitivity.
+HEAT_ADVISORY_MET = R.Meteorology(
+    air_temp_c=34.3,
+    vapour_pressure_hpa=19.7,
+    wind_10m_ms=5.41,
+    label="NWS New York Heat Advisory threshold, NOAA 1991-2020 normals at LaGuardia",
+    sources=(
+        "NWS New York (OKX) Extreme Heat: Heat Advisory at heat index 95 to 99 F",
+        "NOAA NCEI 1991-2020 hourly normals, USW00014732, 21 Jul 15:00 local",
+    ),
+)
 
 _to_utm = Transformer.from_crs(WGS84, UTM18N, always_xy=True)
 _to_wgs = Transformer.from_crs(UTM18N, WGS84, always_xy=True)
@@ -156,9 +185,10 @@ def _rasterise_canopy(
 
 
 def build_neighbourhood(
-    root: Path, nta2020: str, when: datetime
+    root: Path, nta2020: str, when: datetime, met: R.Meteorology | None = None
 ) -> tuple[G.ThermalGrid, dict]:
     """Fetch, rasterise, and compute the proxy MRT grid for one NTA."""
+    met = met or HEAT_ADVISORY_MET
     nta_row, nta_src = S.fetch_nta(root, nta2020)
     geom = shape(nta_row["the_geom"])
     bbox = _bbox_wgs(geom, MARGIN_M)
@@ -181,7 +211,7 @@ def build_neighbourhood(
 
     tg = G.build(
         nta2020, height, canopy, occupied, origin_x, origin_y,
-        when, altitude, azimuth, cell,
+        when, altitude, azimuth, met, cell,
     )
 
     walkable = ~occupied
@@ -203,10 +233,24 @@ def build_neighbourhood(
         "cols": n_cols,
         "buildings": len(buildings),
         "trees_used": trees_used,
-        "calibration": {
-            "t_air_c": G.T_AIR_C,
-            "k_direct_c": G.K_DIRECT_C,
-            "k_diffuse_c": G.K_DIFFUSE_C,
+        "meteorology": {
+            "label": met.label,
+            "air_temp_c": met.air_temp_c,
+            "vapour_pressure_hpa": met.vapour_pressure_hpa,
+            "wind_10m_ms": met.wind_10m_ms,
+            "sources": list(met.sources),
+        },
+        "physics": {
+            "governing_equation": "Tmrt = (Sstr / (eps_p * sigma))^0.25 - 273.15, Hoppe (1992) six-directional",
+            "clear_sky": "Kasten and Czeplak (1980)",
+            "diffuse_split": "Erbs, Klein and Duffie (1982)",
+            "sky_emissivity": "Prata (1996)",
+            "abs_shortwave": R.ABS_SHORTWAVE,
+            "abs_longwave": R.ABS_LONGWAVE,
+            "ground_albedo": R.GROUND_ALBEDO,
+            "wall_albedo": R.WALL_ALBEDO,
+            "surface_emissivity": R.SURFACE_EMISSIVITY,
+            "sunlit_surface_excess_k": R.SUNLIT_SURFACE_EXCESS_K,
             "canopy_transmissivity": G.CANOPY_TRANSMISSIVITY,
         },
         "mrt_c": {

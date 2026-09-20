@@ -109,13 +109,58 @@ pub struct Multiplier {
     pub multiply: f64,
 }
 
-/// The cost rule-tree for a profile.
+/// A continuous cost term: a distance-inflating coefficient on exposure.
 ///
-/// Evaluation:
-///   1. If any condition in impassable_if is true → return None
-///   2. Start with cost = edge[base] (usually "length")
-///   3. For each multiplier whose condition holds → cost *= multiply
-///   4. Return Some(cost)
+/// WHY THIS SHAPE, AND WHERE THE NUMBERS COME FROM
+///
+/// Melnikov et al. (2022), "Behavioural thermal regulation explains pedestrian
+/// path choices in hot urban environments", Scientific Reports 12:2441,
+/// estimate pedestrian route choice in heat from 408 observed path choices as
+///
+/// ```text
+/// c = beta * a_sun + a_shade
+/// ```
+///
+/// where a_sun and a_shade are metres walked in sun and in shade, and beta is
+/// a distance-inflating coefficient on the sunlit part. Their population mean
+/// is beta = 1.16: "100 m walked under full shade is perceived as equal to
+/// 86 m under the sun". Individual estimates reach 1.84.
+///
+/// This term generalises that binary sun-or-shade split to a continuous
+/// exposure field, by interpolating between a shade anchor and a sun anchor:
+///
+/// ```text
+/// cost *= 1 + coefficient * clamp((attr - from) / (to - from), 0, 1)
+/// ```
+///
+/// with `coefficient` = beta - 1. `from` is the attribute value of full shade
+/// and `to` that of full sun, both at the reference meteorology.
+///
+/// TWO PROPERTIES THIS SHAPE HAS THAT A BAND LADDER DOES NOT
+///
+/// It is continuous, so the router does not flip between routes on a rounding
+/// error at a band edge.
+///
+/// It charges nothing at the shade anchor. That matters more than it looks: an
+/// edge outside any surveyed neighbourhood has no attribute at all and is
+/// charged nothing, so anchoring the zero at full shade makes an unsurveyed
+/// edge cost the same as a fully shaded one rather than less than every
+/// surveyed edge. Anchoring instead at an absolute comfort threshold would
+/// charge every surveyed edge and pay the router to leave coverage.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Term {
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Edge attribute to interpolate on. An absent attribute contributes nothing.
+    pub attr: String,
+    /// Runtime arg naming the attribute value of full shade.
+    pub from: String,
+    /// Runtime arg naming the attribute value of full sun.
+    pub to: String,
+    /// Runtime arg naming beta - 1, the inflation applied at full exposure.
+    pub coefficient: String,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CostRules {
     /// Any true condition makes the edge impassable (cost = None).
@@ -127,6 +172,9 @@ pub struct CostRules {
     /// Optional multipliers applied sequentially to the base cost.
     #[serde(default)]
     pub multipliers: Vec<Multiplier>,
+    /// Optional continuous terms, applied after the multipliers.
+    #[serde(default)]
+    pub terms: Vec<Term>,
 }
 
 fn default_base() -> String {

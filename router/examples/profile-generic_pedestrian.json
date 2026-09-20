@@ -2,111 +2,35 @@
   "id": "generic_pedestrian",
   "args": [
     {
-      "name": "heat_aware",
-      "type": "bool",
-      "default": false,
-      "description": "Weight edges by mean radiant temperature. False reproduces the pre-thermal router exactly."
+      "name": "mrt_shade",
+      "type": "float",
+      "default": 33.01,
+      "description": "Mean radiant temperature (C) of full building shade at the reference meteorology (NWS New York Heat Advisory threshold, NOAA 1991-2020 normals at LaGuardia). The zero point of the thermal cost: an edge at or below this pays nothing, which is also what an unsurveyed edge pays, so the router is never paid to leave coverage."
     },
     {
-      "name": "mrt_warm",
+      "name": "mrt_sun",
       "type": "float",
-      "default": 35.0,
-      "description": "Mean radiant temperature (C) above which an edge starts costing more. Comfort threshold."
+      "default": 61.8,
+      "description": "Mean radiant temperature (C) of open full sun at the same reference meteorology. Exposure is the position between the two anchors."
     },
     {
-      "name": "mrt_hot",
+      "name": "sun_inflation",
       "type": "float",
-      "default": 42.0,
-      "description": "MRT (C) above which sustained walking is uncomfortable for a healthy adult."
-    },
-    {
-      "name": "mrt_severe",
-      "type": "float",
-      "default": 50.0,
-      "description": "MRT (C) at which heat strain becomes a health risk over a several-minute exposure."
-    },
-    {
-      "name": "mrt_extreme",
-      "type": "float",
-      "default": 58.0,
-      "description": "MRT (C) of fully sun-exposed asphalt at a July afternoon peak. Avoid where any alternative exists."
+      "default": 0.0,
+      "description": "Extra cost at full sun exposure, as a fraction of distance. This is beta - 1 from Melnikov et al. (2022), Sci Rep 12:2441, who estimate a population mean beta of 1.16 from 408 observed path choices, so 0.16 means a metre in full sun feels 16 percent longer than a metre in shade. Defaults to 0, which switches the thermal layer off and reproduces the pre-thermal router exactly. config/condition-map.yaml sets it per person."
     }
   ],
   "cost": {
     "impassable_if": [],
     "base": "length",
-    "multipliers": [
+    "multipliers": [],
+    "terms": [
       {
-        "description": "Above the comfort threshold. A mild preference for the shaded side of the street.",
-        "if": {
-          "all": [
-            {
-              "param": "heat_aware",
-              "op": "eq",
-              "value": true
-            },
-            {
-              "attr": "mrt",
-              "op": "gt",
-              "param": "mrt_warm"
-            }
-          ]
-        },
-        "multiply": 1.15
-      },
-      {
-        "description": "Compounds with the warm band. Uncomfortable for sustained walking.",
-        "if": {
-          "all": [
-            {
-              "param": "heat_aware",
-              "op": "eq",
-              "value": true
-            },
-            {
-              "attr": "mrt",
-              "op": "gt",
-              "param": "mrt_hot"
-            }
-          ]
-        },
-        "multiply": 1.3
-      },
-      {
-        "description": "Compounds again. Heat strain over a several-minute exposure.",
-        "if": {
-          "all": [
-            {
-              "param": "heat_aware",
-              "op": "eq",
-              "value": true
-            },
-            {
-              "attr": "mrt",
-              "op": "gt",
-              "param": "mrt_severe"
-            }
-          ]
-        },
-        "multiply": 1.5
-      },
-      {
-        "description": "Compounds again. Fully sun-exposed surface at peak. 3.92x in total.",
-        "if": {
-          "all": [
-            {
-              "param": "heat_aware",
-              "op": "eq",
-              "value": true
-            },
-            {
-              "attr": "mrt",
-              "op": "gt",
-              "param": "mrt_extreme"
-            }
-          ]
-        },
-        "multiply": 1.75
+        "description": "Distance-inflating coefficient on thermal exposure, after Melnikov et al. (2022). Continuous rather than banded: the UTCI stress categories are too coarse to route on here, because dUTCI/dMRT is only 0.2137 at these conditions, so a whole neighbourhood falls inside one or two categories.",
+        "attr": "mrt",
+        "from": "mrt_shade",
+        "to": "mrt_sun",
+        "coefficient": "sun_inflation"
       }
     ]
   }

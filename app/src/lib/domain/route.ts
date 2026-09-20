@@ -86,6 +86,25 @@ export type ComfortRouteOk = {
   walking_meters?: number;
   total_seconds?: number;
   picked_stops?: { board: string; alight: string };
+  /**
+   * The decision metric when heat awareness is on: seconds weighted by the
+   * radiant environment they are spent in. Always compare thermal_seconds with
+   * thermal_seconds. `total_seconds` stays in real seconds and is what the user
+   * is shown.
+   */
+  thermal_seconds?: number;
+  /** How the transit wait was priced, and on what evidence. */
+  wait?: {
+    minutes: number;
+    /** True when the real wait was longer than the modelling cap. */
+    truncated: boolean;
+    platform_mrt_c: number | null;
+    platform_structure: string | null;
+    underground: boolean | null;
+    thermal_load: number;
+    /** proxy | assumed | unsurveyed | unmodelled. See domain/thermal.ts. */
+    tier: string;
+  };
   multimodal_legs?: MultimodalLeg[];
   transit_warning?: string;
   sheds_on_route: [];

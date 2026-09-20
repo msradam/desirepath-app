@@ -1,0 +1,347 @@
+# condition-map.yaml
+#
+# Maps a fixed condition vocabulary onto routing parameters.
+#
+# WHY THIS FILE EXISTS
+#
+# The language model never decides what a health condition implies for a route.
+# It does exactly one thing: pick zero or more terms from the `vocabulary`
+# below, constrained at the token level so it cannot emit anything else. Every
+# consequence of a term is written here, in the open, where a clinician can read
+# it and argue with it without reading a line of code.
+#
+# If a term is not in this file, the model cannot produce it. If a term is here
+# but its effects are wrong, the fix is an edit to this file and a version bump,
+# not a code change and not a prompt change.
+#
+# WHAT THIS FILE IS NOT
+#
+# It is not medical advice, and it does not diagnose. It is a set of
+# conservative routing defaults. The thresholds are design choices informed by
+# public heat-health guidance, not clinical thresholds for an individual. Two
+# people with the same diagnosis can have very different heat tolerance. Every
+# value here is meant to be overridden by a clinician who knows the person.
+#
+# HOW THE NUMBER WORKS
+#
+# There is one thermal knob: `sun_inflation`. It is the extra cost the router
+# charges for walking a metre in full sun rather than a metre in full shade,
+# as a fraction of distance.
+#
+# It is beta - 1 from Melnikov et al. (2022), Scientific Reports 12:2441, who
+# estimated pedestrian route choice in heat from 408 observed path choices:
+#
+#     "walking in the sun is considered by pedestrians on average 16% longer
+#      as compared to walking the same distance in the shade"
+#
+# So sun_inflation = 0.16 is the measured population mean, and the router
+# charges proportionally for partial exposure in between.
+#
+# WHAT IS EMPIRICAL HERE AND WHAT IS NOT
+#
+# The SCALE is empirical. Melnikov et al. report a population mean beta of
+# 1.16 and individual estimates reaching 1.84, with credible intervals from
+# 0.37 to 2.20. Basu et al. (2024), Cities 155:105435, independently estimate
+# pedestrian route choice from real GPS trips in Boston, a city with a summer
+# much like New York's, and their coefficient converts to about 0.63 in these
+# units. Every value below sits inside that observed range.
+#
+# The PLACEMENT of a condition on that scale is NOT empirical. No study has
+# estimated a route-choice coefficient for people with heart failure, or for
+# people who cannot sweat. Assigning those conditions a higher coefficient is
+# a design judgement, informed by which conditions public-health guidance
+# treats as reducing heat tolerance. Read every number below as "where we put
+# this condition on a measured scale", not as "what was measured for this
+# condition". That distinction is the whole reason this file exists.
+#
+# When several terms apply, the HIGHEST coefficient wins. Sensitivity
+# accumulates; it never cancels out.
+#
+# MRT is not air temperature. It is what the body exchanges radiant heat with.
+# At the reference meteorology this build uses, full building shade on a NYC
+# street computes to 33.0 C and open full sun to 61.8 C.
+
+version: 4
+updated: 2026-09-20
+schema: condition-map/v4
+
+# Where the numbers came from, so a reviewer can go to the source.
+provenance:
+  cost_scale:
+    source: >
+      Melnikov, V.R., Krzhizhanovskaya, V.V., Lees, M.H. and Sloot, P.M.A.
+      (2022). Behavioural thermal regulation explains pedestrian path choices
+      in hot urban environments. Scientific Reports 12, 2441.
+      doi:10.1038/s41598-022-06383-5
+    estimate: >
+      Population mean beta = 1.16, individual estimates to 1.84, credible
+      intervals spanning 0.37 to 2.20. 46 participants, 408 analysed path
+      choices, Bayesian hierarchical estimation.
+    caveat: >
+      Singapore, on a university campus, with healthy young acclimatised
+      participants. The population this router serves is the opposite on every
+      count. The population mean is used as the DEFAULT, not as the value for a
+      heat-vulnerable person.
+  cross_check:
+    source: >
+      Basu, R., Colaninno, N., Alhassan, A. and Sevtsuk, A. (2024). Hot and
+      bothered. Cities 155, 105435. doi:10.1016/j.cities.2024.105435
+    estimate: >
+      Revealed preference from real GPS pedestrian trips in Boston, a humid
+      continental North American city. 64.3 m of extra walking per degree of
+      UTCI above 32 C, which converts to about 0.63 in these units over the
+      shade-to-sun span this build computes.
+    caveat: >
+      The conversion divides their coefficient by their mean route length of
+      624.9 m. That arithmetic is this project's, not theirs.
+  radiant_temperature_field:
+    source: >
+      Computed by pipeline/thermal/, following the Hoppe (1992) six-directional
+      formulation used by SOLWEIG, with clear-sky irradiance from Kasten and
+      Czeplak (1980) and the direct/diffuse split from Erbs et al. (1982).
+    validation: >
+      Building shade buys 28.8 K of mean radiant temperature relative to open
+      sun. Middel et al. (2021), Bull. Amer. Meteor. Soc. 102(9), measured
+      22.8 to 30.9 K from urban form across 1,988 samples.
+    caveat: >
+      A proxy, not SOLWEIG. Geometry comes from extruded building footprints at
+      4 m, not LiDAR at 1 m. Labelled tier=proxy in every artifact.
+  clinical_direction:
+    basis: >
+      Which conditions reduce heat tolerance follows general public-health heat
+      guidance of the kind health departments publish for heat emergencies.
+    caveat: >
+      Where a condition sits on the measured scale is this project's judgement.
+      No row here is traceable to a published route-choice estimate for that
+      condition, because none exists.
+
+# Applied when the user states no health information at all. A route computed
+# with these is the ordinary shortest accessible route: heat_aware is off, so
+# the thermal layer does not run and the result is byte-identical to the
+# pre-thermal router.
+defaults:
+  heat_aware: false
+  sun_inflation: 0.0        # thermal layer off; routes identical to the pre-thermal router
+  router_profile: generic_pedestrian
+  max_continuous_exposure_min: null
+  prefer_indoor_waiting: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VOCABULARY
+#
+# This is the complete set of terms the extraction stage may emit. The grammar
+# is generated from these keys, so the model cannot invent a term. Adding a term
+# here and regenerating the grammar is the only way to widen it.
+# ─────────────────────────────────────────────────────────────────────────────
+
+vocabulary:
+
+  # ── heat tolerance, stated directly ────────────────────────────────────────
+
+  heat_sensitivity_moderate:
+    label: "Finds heat uncomfortable"
+    # Self-reported discomfort with no stated medical cause. The mildest useful
+    # signal: it turns the thermal layer on and nudges the router toward the
+    # shaded side of the street, without buying long detours.
+    matches_language: ["I don't do well in heat", "the heat bothers me", "I get hot easily"]
+    effects:
+      heat_aware: true
+      sun_inflation: 0.16   # Melnikov population mean: the measured average preference.
+
+
+  heat_sensitivity_high:
+    label: "Poor heat tolerance"
+    # Stated inability to cope with heat, or a history of heat illness. Buys a
+    # materially longer detour and starts capping continuous sun exposure.
+    matches_language: ["I can't handle the heat", "I've had heat stroke", "heat exhaustion"]
+    effects:
+      heat_aware: true
+      sun_inflation: 0.63   # Basu Boston revealed-preference equivalent.
+      max_continuous_exposure_min: 10
+      prefer_indoor_waiting: true
+
+  # ── conditions that impair thermoregulation ────────────────────────────────
+
+  impaired_sweating:
+    label: "Reduced ability to sweat"
+    # Evaporative cooling is the body's main defence against radiant load. Where
+    # it is impaired, by spinal cord injury above roughly T6, by anhidrosis, by
+    # extensive burn scarring, or by anticholinergic medication, radiant heat
+    # is not offset. This is the strongest single reason to avoid direct sun,
+    # so it gets the lowest thresholds in the file.
+    matches_language: ["I don't sweat", "spinal cord injury", "anhidrosis"]
+    effects:
+      heat_aware: true
+      sun_inflation: 0.84   # Melnikov observed individual maximum. The strongest value in the file, because evaporative cooling is the body's main defence against radiant load and this is the condition that removes it.
+      max_continuous_exposure_min: 7
+      prefer_indoor_waiting: true
+
+  cardiovascular_strain:
+    label: "Heart condition"
+    # Heat raises cardiac output demand through skin vasodilation. For someone
+    # with heart failure or ischaemic heart disease that demand is the limiting
+    # factor, and the cost of a long detour may itself exceed the cost of the
+    # heat. So: strong thermal preference, but exposure is capped rather than
+    # traded for unlimited extra distance, and the route stays short.
+    matches_language: ["heart failure", "heart condition", "angina", "had a heart attack"]
+    effects:
+      heat_aware: true
+      sun_inflation: 0.63   # High, but capped exposure matters more than a long detour here: distance is its own cardiac risk.
+      max_continuous_exposure_min: 8
+      prefer_indoor_waiting: true
+      # Deliberately does NOT lower mrt_extreme. Lowering all four would let the
+      # router buy a very long detour, and distance is its own risk here.
+
+  respiratory_limitation:
+    label: "Breathing condition"
+    # COPD and asthma worsen in heat, partly through heat itself and partly
+    # through the ground-level ozone that accompanies it. This build has no
+    # air-quality layer, so the ozone half is UNMODELLED and the adjustment
+    # covers only the thermal half. Recorded here so the gap is visible.
+    matches_language: ["COPD", "asthma", "emphysema", "I get short of breath"]
+    effects:
+      heat_aware: true
+      sun_inflation: 0.40   # Between the population mean and the Boston estimate. The ozone half of the risk is unmodelled, so this covers the thermal half only.
+      max_continuous_exposure_min: 12
+      prefer_indoor_waiting: true
+    unmodelled:
+      - "Ground-level ozone and PM2.5, which track heat and drive respiratory risk."
+
+  # ── photosensitivity ───────────────────────────────────────────────────────
+
+  uv_sensitivity_high:
+    label: "Sun-sensitive skin or eyes"
+    # Lupus, porphyria, vitiligo, recent phototherapy, and a long list of
+    # photosensitising drugs including tetracyclines, thiazides, amiodarone and
+    # some NSAIDs. The risk here is direct-beam exposure specifically, not
+    # ambient warmth, which is a different shape from the rows above: shade at
+    # any temperature is what matters. Expressed by pulling the upper bands
+    # down hard while leaving the comfort threshold near default, so the router
+    # aggressively avoids sunlit segments without penalising warm shade.
+    matches_language: ["lupus", "sun sensitivity", "I burn very easily", "photosensitive"]
+    effects:
+      heat_aware: true
+      sun_inflation: 0.63   # Direct beam is the whole risk here, and the cost term is already driven by beam exposure, so a high coefficient targets it directly.
+      prefer_indoor_waiting: true
+
+  # ── medication classes ─────────────────────────────────────────────────────
+
+  medication_heat_risk:
+    label: "Takes a medication that affects heat tolerance"
+    # Diuretics reduce circulating volume. Beta blockers blunt the heart-rate
+    # response. Anticholinergics and many antipsychotics suppress sweating.
+    # Lithium concentration rises with dehydration. The vocabulary deliberately
+    # stops at "a medication that affects heat tolerance" and does NOT model
+    # drug classes separately: the router cannot verify what someone is taking,
+    # and a finer vocabulary would imply a precision it does not have.
+    matches_language: ["water pills", "beta blocker", "I'm on lithium", "my medication"]
+    effects:
+      heat_aware: true
+      sun_inflation: 0.40   # Deliberately mid-scale: the router cannot verify what someone takes, and a finer answer would imply a precision it does not have.
+      max_continuous_exposure_min: 12
+      prefer_indoor_waiting: true
+
+  # ── life stage ─────────────────────────────────────────────────────────────
+
+  older_adult:
+    label: "Older adult"
+    # Thirst response, sweat rate and cardiovascular reserve all decline with
+    # age, and NYC heat mortality is concentrated in older residents. Applied
+    # only when age is actually stated or the person is described as elderly,
+    # never inferred from anything else.
+    matches_language: ["I'm 78", "my mother is elderly", "senior"]
+    effects:
+      heat_aware: true
+      sun_inflation: 0.63   # Thirst response, sweat rate and cardiovascular reserve all decline with age, and NYC heat mortality is concentrated in older residents.
+      max_continuous_exposure_min: 12
+      prefer_indoor_waiting: true
+
+  young_child:
+    label: "Travelling with a young child"
+    # A small body has a high surface-to-mass ratio and a stroller sits low,
+    # close to radiating pavement, which is hotter than the air an adult
+    # breathes. Also implies the stroller mobility profile.
+    matches_language: ["with my baby", "pushing a stroller", "my toddler"]
+    effects:
+      heat_aware: true
+      sun_inflation: 0.40   # A stroller sits low, close to radiating pavement, which is hotter than the air an adult breathes.
+      router_profile: generic_pedestrian
+      max_continuous_exposure_min: 12
+
+  pregnancy:
+    label: "Pregnant"
+    # Raised baseline core temperature and blood volume, with evidence linking
+    # heat exposure to adverse outcomes. Conservative by design.
+    matches_language: ["I'm pregnant", "expecting"]
+    effects:
+      heat_aware: true
+      sun_inflation: 0.40   # Raised baseline core temperature and blood volume.
+      max_continuous_exposure_min: 12
+      prefer_indoor_waiting: true
+
+  # ── mobility and sensory, inherited from the base router ───────────────────
+  #
+  # These existed before the thermal layer and already map onto routing
+  # profiles. They are listed here so that one file describes everything the
+  # extraction stage can emit, rather than splitting the vocabulary in two.
+
+  mobility_wheelchair:
+    label: "Uses a wheelchair"
+    # Selects the wheelchair routing profile, which blocks steep grades and
+    # charges 3x for a crossing with no confirmed curb ramp. Note the thermal
+    # interaction: a wheelchair user travels closer to the pavement, which is
+    # the hottest surface, and many wheelchair users have impaired sweating.
+    # That second effect is NOT applied automatically here, because it does not
+    # follow from wheelchair use alone. It needs `impaired_sweating` stated.
+    matches_language: ["wheelchair", "I use a chair"]
+    effects:
+      router_profile: manual_wheelchair
+
+  mobility_slow:
+    label: "Walks slowly or with an aid"
+    # Longer time on the route at the same distance, so the same exposure costs
+    # more. Handled by capping continuous exposure rather than by changing the
+    # cost multipliers, which price distance rather than time.
+    matches_language: ["cane", "walker", "I walk slowly", "I get tired"]
+    effects:
+      router_profile: generic_pedestrian
+      max_continuous_exposure_min: 12
+
+  low_vision:
+    label: "Low vision or blind"
+    # Selects the low-vision profile: unpaved surfaces impassable, cobblestone
+    # penalised, zebra crossings preferred, unmarked crossings penalised.
+    matches_language: ["visually impaired", "I'm blind", "low vision", "audible signals"]
+    effects:
+      router_profile: low_vision
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COMBINATION RULES
+# ─────────────────────────────────────────────────────────────────────────────
+
+combination:
+  sun_inflation: max    # the most sensitive matched term wins
+  max_continuous_exposure_min: min
+  prefer_indoor_waiting: any
+  heat_aware: any
+  router_profile:
+    # Mobility profiles are mutually exclusive and there is no blend of two. The
+    # most restrictive wins, so a stated wheelchair need is never silently
+    # downgraded by another term.
+    precedence: [manual_wheelchair, low_vision, generic_pedestrian]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WHAT THIS FILE DOES NOT COVER
+#
+# Listed rather than silently omitted, because an absent row reads as "not a
+# risk" unless it is written down.
+# ─────────────────────────────────────────────────────────────────────────────
+
+unmodelled:
+  - "Humidity. Evaporative cooling fails as humidity rises, and NYC summers are humid. The proxy MRT layer has no humidity term."
+  - "Wind. Convective cooling varies street by street and is not modelled."
+  - "Air quality. Ozone and PM2.5 rise with heat and drive respiratory risk."
+  - "Personal acclimatisation, fitness, hydration and clothing."
+  - "Time of day beyond the single precomputed hour the grid was built for."
+  - "Indoor conditions at the destination, including whether its cooling works."
+  - "Cumulative exposure across a whole day, or across consecutive days."

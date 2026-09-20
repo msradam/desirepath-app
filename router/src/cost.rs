@@ -10,7 +10,7 @@
 
 use serde_json::Value;
 
-use crate::profile::{CompOp, Condition, CostRules, EdgeAttrs, RuntimeArgs};
+use crate::profile::{CompOp, Condition, CostRules, EdgeAttrs, RuntimeArgs, Term};
 
 /// Evaluate the cost rule-tree for one edge.
 ///
@@ -45,7 +45,48 @@ pub fn eval_cost(rules: &CostRules, attrs: &EdgeAttrs, args: &RuntimeArgs) -> Op
         }
     });
 
+    // Step 4: apply continuous terms
+    let cost = rules
+        .terms
+        .iter()
+        .fold(cost, |acc, t| acc * (1.0 + term_factor(t, attrs, args)));
+
     Some(cost)
+}
+
+/// Value of one continuous term:
+/// `coefficient * clamp((attr - from) / (to - from), 0, 1)`.
+///
+/// Returns 0 when the attribute is absent, which is what makes an unsurveyed
+/// edge cost exactly what it cost before the thermal layer existed. Missing or
+/// degenerate args also yield 0, so a misconfigured profile degrades to the
+/// plain router rather than dividing by zero and poisoning the whole
+/// shortest-path tree with NaN.
+fn term_factor(term: &Term, attrs: &EdgeAttrs, args: &RuntimeArgs) -> f64 {
+    let value = match attrs.get(&term.attr).and_then(|v| v.as_f64()) {
+        Some(v) => v,
+        None => return 0.0,
+    };
+    let coefficient = match args.get(&term.coefficient).and_then(|v| v.as_f64()) {
+        Some(v) => v,
+        None => return 0.0,
+    };
+    if coefficient == 0.0 {
+        return 0.0;
+    }
+    let (from, to) = match (
+        args.get(&term.from).and_then(|v| v.as_f64()),
+        args.get(&term.to).and_then(|v| v.as_f64()),
+    ) {
+        (Some(f), Some(t)) => (f, t),
+        _ => return 0.0,
+    };
+    let span = to - from;
+    if span.abs() < f64::EPSILON {
+        return 0.0;
+    }
+    let exposure = ((value - from) / span).clamp(0.0, 1.0);
+    coefficient * exposure
 }
 
 /// Evaluate a Condition recursively.

@@ -19,6 +19,7 @@ import click
 
 from pipeline.thermal import attach as A
 from pipeline.thermal import build as B
+from pipeline.thermal import stops as ST
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data"
@@ -71,6 +72,7 @@ def build(ntas: tuple[str, ...], when: str | None, attach: bool) -> None:
 
     if attach:
         _attach(targets)
+        _stops(targets)
 
 
 @cli.command(name="attach")
@@ -106,6 +108,26 @@ def _attach(targets: list[str]) -> None:
         f"median {report['mrt_c']['median']:.1f} C"
     )
     click.echo(f"      wrote {dst.name}, {report['bytes'] / 1e6:.1f} MB (OSWB v3)")
+
+
+@cli.command(name="stops")
+@click.option("--nta", "ntas", multiple=True)
+def stops_cmd(ntas: tuple[str, ...]) -> None:
+    """Sample platform MRT for every subway stop."""
+    _stops(list(ntas) or list(NEIGHBOURHOODS))
+
+
+def _stops(targets: list[str]) -> None:
+    out = DATA / "thermal-stops.json"
+    payload = ST.build_stop_thermal(DATA, targets)
+    out.write_text(json.dumps(payload, indent=2) + "\n")
+    c = payload["counts"]
+    click.echo(f"\n  platform thermal profile -> {out.name}")
+    click.echo(
+        f"      {c['underground']} underground (assumed {ST.UNDERGROUND_PLATFORM_MRT_C} C), "
+        f"{c['open_air']} open-air sampled, {c['unsurveyed']} open-air outside coverage, "
+        f"{c['unknown_structure']} unclassified"
+    )
 
 
 @cli.command()
