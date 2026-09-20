@@ -1,23 +1,23 @@
 <script lang="ts">
   /**
-   * The landing page.
+   * The landing page, which is a pitch backdrop.
    *
-   * One job: say what this is and get out of the way. The routing view is one
-   * click from here and the coverage notice is the other.
+   * It sits on a projector while somebody talks over it, so it is built to be
+   * glanced at rather than read: a line, a pair of numbers and one button. The
+   * first version was three paragraphs, a three-column definition list and a
+   * limits note, which is a document. Those facts live in README.md and
+   * THESIS.md, where somebody can actually read them.
    *
-   * It carries no model, no graph and no map, so it is ready the moment it is
-   * served. That matters on a phone in the heat, and it matters on a projector
-   * where the first thing a room sees should not be a loading bar.
+   * It loads no model, no graph and no map, so it is ready the moment it is
+   * served and there is never a loading bar behind the speaker.
    */
-  import { REFERENCE_METEOROLOGY } from '$lib/domain/thermal-constants';
-  import { SUN_INFLATION_DEFAULT, SUN_INFLATION_SENSITIVE } from '$lib/domain/thermal-constants';
 
-  /** Measured, from tests/thermal-cases.json and the coverage build. */
-  const BROWNSVILLE = { claimed: 12.8, reachable: 3.3, elements: 2, km2: 2.86 };
+  /** Measured. tests/thermal-cases.json and the coverage build. */
+  const BROWNSVILLE = { claimed: 12.8, reachable: 3.3 };
 </script>
 
 <svelte:head>
-  <title>DesirePath. Accessible routing to the places a city says are close</title>
+  <title>DesirePath. Close is not the same as reachable</title>
 </svelte:head>
 
 <div class="sheet">
@@ -26,91 +26,33 @@
     <p class="subject">Accessible pedestrian routing, New York City</p>
   </header>
 
-  <div class="body">
-    <!-- The thesis, at the top, in one sentence a person can repeat. -->
-    <section class="lede">
-      <h1>
-        A kerb without a ramp and four hundred metres of unshaded asphalt are
-        the same kind of problem. <span class="hi">This routes around both.</span>
-      </h1>
-      <p class="sub">
-        DesirePath plans walks to public infrastructure, cooling centres,
-        libraries, restrooms, senior centres, over the sidewalk network itself
-        rather than the road beside it. Kerb ramps, crossings and step-free
-        paths are edges it can route on. So is heat.
-      </p>
+  <div class="stage">
+    <h1>Close is not the same as reachable.</h1>
 
-      <div class="actions">
-        <a class="go" href="/route">
-          Plan a walk
-          <span class="go-sub">type it in plain English</span>
-        </a>
-        <a class="alt" href="/coverage?nta=BK1602">
-          See what the quarter mile really delivers
-        </a>
+    <p class="sub">
+      Walking routes to cooling centres, libraries and restrooms, over the
+      sidewalk network itself. Kerb ramps and crossings are edges it routes on.
+      So is heat.
+    </p>
+
+    <!-- The finding, as two numbers side by side. This is the thing to look at
+         while somebody says the sentence out loud. -->
+    <div class="figures">
+      <div class="fig">
+        <p class="fig-n">{BROWNSVILLE.claimed}<span class="pc">%</span></p>
+        <p class="fig-l">the City counts as covered</p>
       </div>
-    </section>
+      <div class="fig fig-short">
+        <p class="fig-n">{BROWNSVILLE.reachable}<span class="pc">%</span></p>
+        <p class="fig-l">reachable on foot, in the heat</p>
+      </div>
+      <p class="fig-where">Brownsville, Brooklyn &middot; NYC DEP quarter-mile claim, 24 June 2020</p>
+    </div>
 
-    <!-- The finding. One number, stated the way it would be said out loud. -->
-    <section class="finding">
-      <p class="claim">
-        New York says no one in its most heat-burdened neighbourhoods is more
-        than a quarter mile from somewhere to cool down.
-      </p>
-      <p class="against">
-        In Brownsville that quarter mile counts
-        <strong>{BROWNSVILLE.claimed}%</strong> of the sidewalk network. Walked
-        in the heat, a resident reaches
-        <strong class="short">{BROWNSVILLE.reachable}%</strong>, from
-        {BROWNSVILLE.elements} cooling elements across {BROWNSVILLE.km2} km².
-      </p>
-      <p class="cite">NYC DEP, Mayor de Blasio Expands Cool It! NYC, 24 June 2020</p>
-    </section>
-
-    <!-- What it is built on. Three facts, no icons, no cards. -->
-    <section class="how">
-      <dl>
-        <div>
-          <dt>Routes on</dt>
-          <dd>
-            The <strong>OpenSidewalks</strong> graph, where a sidewalk is a
-            first-class edge and a kerb ramp is a node with a height. That is
-            the contribution; this is a consumer of it.
-          </dd>
-        </div>
-        <div>
-          <dt>Prices</dt>
-          <dd>
-            <strong>Mean radiant temperature</strong> per edge, 32.5&nbsp;°C in
-            deep shade to 70&nbsp;°C in open sun. A metre in full sun costs the
-            router up to <strong>1.84&nbsp;metres</strong>, after Melnikov et
-            al. (2022) and 408 observed path choices.
-          </dd>
-        </div>
-        <div>
-          <dt>Runs on</dt>
-          <dd>
-            Your device, or the machine serving this page. The routing, the
-            graph and the geocoder never leave the browser, and the app says
-            which engine read your sentence.
-          </dd>
-        </div>
-      </dl>
-    </section>
-
-    <!-- The limits, on the front page rather than in a footnote. -->
-    <section class="limits">
-      <p>
-        Radiant temperature here is a <strong>proxy, not SOLWEIG</strong>, and
-        every artifact says so. Thermal survey covers five neighbourhoods,
-        7.67% of the city's edges; everywhere else routes exactly as it did
-        before. The field is one design hour, {REFERENCE_METEOROLOGY.air_temp_c}&nbsp;°C
-        air under clear sky, and does not know what time it is.
-        Sun inflation runs {SUN_INFLATION_DEFAULT} to {SUN_INFLATION_SENSITIVE}
-        and is <strong>0 unless a condition is stated</strong>, so a route with
-        none is identical to the one the pre-thermal router produced.
-      </p>
-    </section>
+    <div class="actions">
+      <a class="go" href="/route">Plan a walk</a>
+      <a class="alt" href="/coverage?nta=BK1602">See the coverage</a>
+    </div>
   </div>
 </div>
 
@@ -151,108 +93,61 @@
     color: var(--muted);
   }
 
-  .body {
+  /* One block, centred, sized to the room rather than to the page. */
+  .stage {
+    display: grid;
+    align-content: center;
+    gap: 0;
+    padding: 24px 28px 34px;
     overflow-y: auto;
-    padding: 0 28px 40px;
-  }
-
-  /* ── The thesis ────────────────────────────────────────────────────────── */
-  .lede {
-    max-width: 62rem;
-    padding: 44px 0 34px;
   }
 
   h1 {
-    max-width: 24ch;
-    font-size: clamp(1.9rem, 1.1rem + 3.1vw, 3.6rem);
+    max-width: 18ch;
+    font-size: clamp(2.4rem, 1rem + 5.4vw, 5.6rem);
     font-weight: 900;
-    line-height: 1.04;
-    letter-spacing: -0.035em;
+    line-height: 0.98;
+    letter-spacing: -0.04em;
     text-wrap: balance;
   }
-  .hi { color: var(--hivis); }
 
   .sub {
-    max-width: 58ch;
+    max-width: 50ch;
     margin-top: 20px;
-    font-size: clamp(0.98rem, 0.88rem + 0.4vw, 1.2rem);
-    line-height: 1.55;
-    color: var(--bone-2);
-  }
-
-  /* ── The one click ─────────────────────────────────────────────────────── */
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: stretch;
-    gap: 12px;
-    margin-top: 30px;
-  }
-
-  /* The primary action is the only filled yellow on the page, so there is
-     never a question which one it is. */
-  .go {
-    display: grid;
-    gap: 2px;
-    padding: 14px 22px;
-    background: var(--hivis);
-    color: var(--slate);
-    font-size: 1.05rem;
-    font-weight: 900;
-    letter-spacing: 0.01em;
-    text-decoration: none;
-    border: 2px solid var(--hivis);
-  }
-  .go-sub {
-    font-family: var(--font-mono);
-    font-size: 0.64rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    opacity: 0.85;
-  }
-  .go:hover { background: var(--hivis-2); border-color: var(--hivis-2); }
-  .go:focus-visible { outline: 3px solid var(--bone); outline-offset: 3px; }
-
-  .alt {
-    display: flex;
-    align-items: center;
-    padding: 14px 20px;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--bone);
-    text-decoration: none;
-    border: 2px solid var(--subtle);
-  }
-  .alt:hover { border-color: var(--bone); }
-  .alt:focus-visible { outline: 3px solid var(--hivis); outline-offset: 3px; }
-
-  /* ── The finding ───────────────────────────────────────────────────────── */
-  .finding {
-    max-width: 62rem;
-    padding: 26px 0 26px 22px;
-    border-left: var(--rule-heavy) solid var(--hivis);
-  }
-
-  .claim {
-    max-width: 54ch;
-    font-size: clamp(1.05rem, 0.92rem + 0.5vw, 1.35rem);
-    font-weight: 700;
-    line-height: 1.35;
-  }
-
-  .against {
-    max-width: 56ch;
-    margin-top: 12px;
-    font-size: clamp(0.95rem, 0.88rem + 0.3vw, 1.1rem);
+    font-size: clamp(1rem, 0.9rem + 0.5vw, 1.3rem);
     line-height: 1.5;
     color: var(--bone-2);
   }
-  .against strong { color: var(--bone); font-weight: 800; }
-  .against strong.short { color: var(--hivis); }
 
-  .cite {
+  .figures {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 14px 56px;
+    margin-top: 34px;
+    padding-top: 22px;
+    border-top: var(--rule-hair) solid var(--subtle);
+  }
+
+  .fig-n {
+    font-size: clamp(2.6rem, 1.2rem + 5vw, 5rem);
+    font-weight: 900;
+    line-height: 0.85;
+    letter-spacing: -0.045em;
+  }
+  .fig-n .pc { font-size: 0.42em; font-weight: 800; margin-left: 2px; }
+  .fig-short .fig-n { color: var(--hivis); }
+
+  .fig-l {
     margin-top: 10px;
+    max-width: 18ch;
+    font-size: 0.9rem;
+    line-height: 1.35;
+    color: var(--bone-2);
+  }
+
+  .fig-where {
+    flex-basis: 100%;
     font-family: var(--font-mono);
     font-size: 0.66rem;
     font-weight: 700;
@@ -261,57 +156,44 @@
     color: var(--muted);
   }
 
-  /* ── How ───────────────────────────────────────────────────────────────── */
-  .how {
-    max-width: 78rem;
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
     margin-top: 34px;
-    padding-top: 26px;
-    border-top: var(--rule-hair) solid var(--subtle);
   }
 
-  .how dl {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-    gap: 26px 40px;
+  /* The only filled yellow on the page. */
+  .go {
+    padding: 15px 28px;
+    background: var(--hivis);
+    color: var(--slate);
+    font-size: 1.1rem;
+    font-weight: 900;
+    text-decoration: none;
+    border: 2px solid var(--hivis);
   }
+  .go:hover { background: var(--hivis-2); border-color: var(--hivis-2); }
+  .go:focus-visible { outline: 3px solid var(--bone); outline-offset: 3px; }
 
-  .how dt {
-    font-family: var(--font-mono);
-    font-size: 0.66rem;
+  .alt {
+    display: flex;
+    align-items: center;
+    padding: 15px 22px;
+    font-size: 1rem;
     font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--reach);
+    color: var(--bone);
+    text-decoration: none;
+    border: 2px solid var(--subtle);
   }
-
-  .how dd {
-    margin-top: 8px;
-    font-size: 0.92rem;
-    line-height: 1.55;
-    color: var(--bone-2);
-  }
-  .how dd strong { color: var(--bone); font-weight: 700; }
-
-  /* ── Limits ────────────────────────────────────────────────────────────── */
-  .limits {
-    max-width: 72rem;
-    margin-top: 30px;
-    padding-top: 20px;
-    border-top: var(--rule-hair) solid var(--subtle);
-  }
-  .limits p {
-    max-width: 86ch;
-    font-size: 0.82rem;
-    line-height: 1.6;
-    color: var(--muted);
-  }
-  .limits strong { color: var(--bone-2); font-weight: 700; }
+  .alt:hover { border-color: var(--bone); }
+  .alt:focus-visible { outline: 3px solid var(--hivis); outline-offset: 3px; }
 
   @media (max-width: 52rem) {
     .plate { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 16px; }
-    .body { padding: 0 16px 32px; }
-    .lede { padding: 28px 0 24px; }
+    .stage { padding: 20px 16px 28px; }
+    .figures { gap: 18px 32px; margin-top: 26px; }
     .actions { flex-direction: column; align-items: stretch; }
-    .finding { padding-left: 16px; }
+    .go, .alt { text-align: center; justify-content: center; }
   }
 </style>
